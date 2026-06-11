@@ -24,6 +24,8 @@ export interface GameState {
   selectedId: string | null;
   /** performance.now() timestamp when the round started. */
   startedAt: number;
+  /** performance.now() timestamp the answer clock was paused at, or null if running. */
+  pausedAt: number | null;
   /** Result of the just-revealed round. */
   lastCorrect: boolean | null;
   lastTimeMs: number | null;
@@ -37,6 +39,8 @@ export interface GameState {
   select: (id: string) => void;
   confirm: () => void;
   timeUp: () => void;
+  pause: () => void;
+  resume: () => void;
   next: () => void;
   resetSession: () => void;
   startChallenge: (config: ChallengeConfig) => void;
@@ -51,6 +55,7 @@ export const useGame = create<GameState>((set, get) => ({
   targetAlpha2: null,
   selectedId: null,
   startedAt: 0,
+  pausedAt: null,
   lastCorrect: null,
   lastTimeMs: null,
   lastTimedOut: false,
@@ -85,6 +90,7 @@ export const useGame = create<GameState>((set, get) => ({
       lastTimeMs: null,
       lastTimedOut: false,
       startedAt: performance.now(),
+      pausedAt: null,
     });
   },
 
@@ -162,6 +168,23 @@ export const useGame = create<GameState>((set, get) => ({
     // Flag the round as timed out, then lock in whatever (if anything) is picked.
     set({ lastTimedOut: true });
     get().confirm();
+  },
+
+  // Freeze the answer clock while the board is off-screen (e.g. the player opened
+  // settings). Only a live guess has a clock to pause; a no-op otherwise.
+  pause: () => {
+    const { status, pausedAt } = get();
+    if (status !== 'guessing' || pausedAt !== null) return;
+    set({ pausedAt: performance.now() });
+  },
+
+  // Resume by shifting startedAt forward over the paused span, so elapsed time
+  // excludes it. Both the countdown bar and the timeout key off startedAt, so
+  // they stay in sync instead of drifting by however long the board was away.
+  resume: () => {
+    const { pausedAt, startedAt } = get();
+    if (pausedAt === null) return;
+    set({ startedAt: startedAt + (performance.now() - pausedAt), pausedAt: null });
   },
 
   next: () => get().newRound(),

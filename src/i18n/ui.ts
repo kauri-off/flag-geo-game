@@ -55,7 +55,6 @@ const en = {
   volume: 'Volume',
   showPickedFlag: 'Show the flag of your wrong pick',
   answerTime: 'Answer time limit',
-  flagSize: 'Flag size',
   noLimit: 'No limit',
   timeUpMsg: "Time's up!",
   // challenge mode
@@ -131,7 +130,6 @@ const ru: Record<UiKey, string> = {
   volume: 'Громкость',
   showPickedFlag: 'Показывать флаг неверного выбора',
   answerTime: 'Лимит времени на ответ',
-  flagSize: 'Размер флага',
   noLimit: 'Без лимита',
   timeUpMsg: 'Время вышло!',
   challenge: 'Челлендж',

@@ -110,21 +110,6 @@ export function SettingsScreen() {
       </section>
 
       <section className="settings-group">
-        <h3>{t('flagSize', lang)}</h3>
-        <div className="slider-row">
-          <input
-            type="range"
-            min={50}
-            max={200}
-            step={10}
-            value={s.flagSize}
-            onChange={(e) => s.setFlagSize(Number(e.target.value))}
-          />
-          <span className="slider-val">{s.flagSize}%</span>
-        </div>
-      </section>
-
-      <section className="settings-group">
         <h3>{t('mapSize', lang)}</h3>
         <div className="slider-row">
           <input

@@ -20,15 +20,14 @@ export function RoundBoard() {
   const language = useSettings((s) => s.language);
   const confirmMode = useSettings((s) => s.confirmMode);
   const practiceSeconds = useSettings((s) => s.answerSeconds);
-  const flagSize = useSettings((s) => s.flagSize);
 
   // A challenge sets its own per-answer limit; free practice uses the setting.
   const answerSeconds = challenge ? challenge.config.timeLimitSec : practiceSeconds;
 
-  // Single source for the flag font-size: drives both the flags and the overlay
-  // width (sized to fit two flags) so the prompt text wraps instead of stretching
-  // the panel. 100% => 3rem (the overlay's base).
-  const overlayStyle = { '--fi-size': `${(flagSize / 100) * 3}rem` } as CSSProperties;
+  // Flag font-size: drives both the flags and the overlay width (sized to fit two
+  // flags) so the prompt text wraps instead of stretching the panel. Fixed at 6rem
+  // (what the old "flag size" setting produced at 200%).
+  const overlayStyle = { '--fi-size': '6rem' } as CSSProperties;
 
   // Spacebar: confirm during a guess (spacebar mode), advance after reveal.
   useEffect(() => {
@@ -45,14 +44,25 @@ export function RoundBoard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [confirm, next, confirmMode]);
 
+  // Pause the answer clock while the board is unmounted (the player navigated to
+  // another screen) and resume it on return, so the timer doesn't keep "running"
+  // off-screen and desync from the visible countdown.
+  useEffect(() => {
+    useGame.getState().resume();
+    return () => useGame.getState().pause();
+  }, []);
+
   // Answer timer: when it runs out, lock in the round as a timeout. Re-armed on
-  // every new round (startedAt changes) and disabled when the limit is 0.
+  // every new round and on resume (both change startedAt) and disabled when the
+  // limit is 0. Fires after the *remaining* time so a partly-elapsed round isn't
+  // granted the full limit again after navigating away and back.
   useEffect(() => {
     if (status !== 'guessing' || answerSeconds <= 0) return;
+    const remaining = answerSeconds * 1000 - (performance.now() - startedAt);
     const id = window.setTimeout(() => {
       const g = useGame.getState();
       if (g.status === 'guessing') g.timeUp();
-    }, answerSeconds * 1000);
+    }, Math.max(0, remaining));
     return () => clearTimeout(id);
   }, [status, startedAt, answerSeconds]);
 

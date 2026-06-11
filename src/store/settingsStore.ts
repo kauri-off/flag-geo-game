@@ -31,8 +31,6 @@ export interface SettingsState {
   showPickedFlag: boolean;
   /** Seconds allowed per round before it auto-reveals as a timeout. 0 = no limit. */
   answerSeconds: number;
-  /** Size of the question flag, as a percentage of the default (50–200). */
-  flagSize: number;
 
   setMode: (mode: GameModeId) => void;
   setLanguage: (lang: Language) => void;
@@ -45,7 +43,6 @@ export interface SettingsState {
   setVolume: (v: number) => void;
   setShowPickedFlag: (v: boolean) => void;
   setAnswerSeconds: (s: number) => void;
-  setFlagSize: (n: number) => void;
 }
 
 export const useSettings = create<SettingsState>()(
@@ -61,7 +58,6 @@ export const useSettings = create<SettingsState>()(
       volume: 80,
       showPickedFlag: false,
       answerSeconds: 10,
-      flagSize: 100,
 
       setMode: (mode) => set({ mode }),
       setLanguage: (language) => set({ language }),
@@ -88,8 +84,6 @@ export const useSettings = create<SettingsState>()(
       setShowPickedFlag: (showPickedFlag) => set({ showPickedFlag }),
       setAnswerSeconds: (answerSeconds) =>
         set({ answerSeconds: Math.min(60, Math.max(0, Math.round(answerSeconds))) }),
-      setFlagSize: (flagSize) =>
-        set({ flagSize: Math.min(200, Math.max(50, Math.round(flagSize))) }),
     }),
     { name: 'flag-geo-settings' },
   ),
