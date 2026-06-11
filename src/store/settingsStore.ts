@@ -29,6 +29,10 @@ export interface SettingsState {
   volume: number;
   /** On a wrong guess, also show the flag of the country the player picked. */
   showPickedFlag: boolean;
+  /** Seconds allowed per round before it auto-reveals as a timeout. 0 = no limit. */
+  answerSeconds: number;
+  /** Size of the question flag, as a percentage of the default (50–200). */
+  flagSize: number;
 
   setMode: (mode: GameModeId) => void;
   setLanguage: (lang: Language) => void;
@@ -40,6 +44,8 @@ export interface SettingsState {
   setSoundOn: (v: boolean) => void;
   setVolume: (v: number) => void;
   setShowPickedFlag: (v: boolean) => void;
+  setAnswerSeconds: (s: number) => void;
+  setFlagSize: (n: number) => void;
 }
 
 export const useSettings = create<SettingsState>()(
@@ -54,6 +60,8 @@ export const useSettings = create<SettingsState>()(
       soundOn: true,
       volume: 80,
       showPickedFlag: false,
+      answerSeconds: 10,
+      flagSize: 100,
 
       setMode: (mode) => set({ mode }),
       setLanguage: (language) => set({ language }),
@@ -78,6 +86,10 @@ export const useSettings = create<SettingsState>()(
       setSoundOn: (soundOn) => set({ soundOn }),
       setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, Math.round(volume))) }),
       setShowPickedFlag: (showPickedFlag) => set({ showPickedFlag }),
+      setAnswerSeconds: (answerSeconds) =>
+        set({ answerSeconds: Math.min(60, Math.max(0, Math.round(answerSeconds))) }),
+      setFlagSize: (flagSize) =>
+        set({ flagSize: Math.min(200, Math.max(50, Math.round(flagSize))) }),
     }),
     { name: 'flag-geo-settings' },
   ),

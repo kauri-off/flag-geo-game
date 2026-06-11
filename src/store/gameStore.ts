@@ -8,10 +8,11 @@ import type { RoundRecord, SessionStats } from '../game/types';
 import { countryById } from '../data/countries';
 import { countryName } from '../i18n';
 import { playSelect, playCorrect, playWrong } from '../game/sound';
+import { roundPoints, type ChallengeConfig, type ChallengeState } from '../game/challenge';
 import { useSettings } from './settingsStore';
 import { useHistory } from './historyStore';
 
-export type RoundStatus = 'idle' | 'guessing' | 'revealed' | 'empty';
+export type RoundStatus = 'idle' | 'guessing' | 'revealed' | 'empty' | 'finished';
 
 export interface GameState {
   status: RoundStatus;
@@ -26,13 +27,20 @@ export interface GameState {
   /** Result of the just-revealed round. */
   lastCorrect: boolean | null;
   lastTimeMs: number | null;
+  /** The just-revealed round ended because the answer timer ran out. */
+  lastTimedOut: boolean;
   session: SessionStats;
+  /** Active scored run, or null during free practice. */
+  challenge: ChallengeState | null;
 
   newRound: () => void;
   select: (id: string) => void;
   confirm: () => void;
+  timeUp: () => void;
   next: () => void;
   resetSession: () => void;
+  startChallenge: (config: ChallengeConfig) => void;
+  endChallenge: () => void;
 }
 
 const emptySession = (): SessionStats => ({ rounds: 0, correct: 0, times: [] });
@@ -45,10 +53,21 @@ export const useGame = create<GameState>((set, get) => ({
   startedAt: 0,
   lastCorrect: null,
   lastTimeMs: null,
+  lastTimedOut: false,
   session: emptySession(),
+  challenge: null,
 
   newRound: () => {
-    const { difficulty } = useSettings.getState();
+    const { challenge } = get();
+    // A finished challenge run stops here; the screen switches to the analysis.
+    if (challenge && challenge.results.length >= challenge.config.rounds) {
+      set({ status: 'finished' });
+      return;
+    }
+    // Challenges run their own difficulty; free practice reads it from settings.
+    const difficulty = challenge
+      ? challenge.config.difficulty
+      : useSettings.getState().difficulty;
     const pool = buildPool(difficulty);
     // Key the shuffle bag to the active filters so it refills when they change.
     const key = `${difficulty.size}|${[...difficulty.continents].sort().join(',')}`;
@@ -64,6 +83,7 @@ export const useGame = create<GameState>((set, get) => ({
       selectedId: null,
       lastCorrect: null,
       lastTimeMs: null,
+      lastTimedOut: false,
       startedAt: performance.now(),
     });
   },
@@ -111,19 +131,48 @@ export const useGame = create<GameState>((set, get) => ({
 
     useHistory.getState().addRound(record);
 
-    set((s) => ({
-      status: 'revealed',
-      lastCorrect: correct,
-      lastTimeMs: timeMs,
-      session: {
-        rounds: s.session.rounds + 1,
-        correct: s.session.correct + (correct ? 1 : 0),
-        times: correct ? [...s.session.times, timeMs] : s.session.times,
-      },
-    }));
+    set((s) => {
+      const next: Partial<GameState> = {
+        status: 'revealed',
+        lastCorrect: correct,
+        lastTimeMs: timeMs,
+        session: {
+          rounds: s.session.rounds + 1,
+          correct: s.session.correct + (correct ? 1 : 0),
+          times: correct ? [...s.session.times, timeMs] : s.session.times,
+        },
+      };
+      if (s.challenge) {
+        const points = roundPoints(correct, timeMs, s.challenge.config.timeLimitSec);
+        next.challenge = {
+          ...s.challenge,
+          score: s.challenge.score + points,
+          results: [
+            ...s.challenge.results,
+            { targetId, correct, timedOut: s.lastTimedOut, timeMs, points },
+          ],
+        };
+      }
+      return next;
+    });
+  },
+
+  timeUp: () => {
+    if (get().status !== 'guessing') return;
+    // Flag the round as timed out, then lock in whatever (if anything) is picked.
+    set({ lastTimedOut: true });
+    get().confirm();
   },
 
   next: () => get().newRound(),
 
   resetSession: () => set({ session: emptySession() }),
+
+  startChallenge: (config) => {
+    // Fresh run: clear any leftover target so the first pick is unbiased.
+    set({ challenge: { config, results: [], score: 0 }, targetId: null });
+    get().newRound();
+  },
+
+  endChallenge: () => set({ challenge: null, status: 'idle' }),
 }));

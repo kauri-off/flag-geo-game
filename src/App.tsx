@@ -1,14 +1,16 @@
 // App shell: top navigation + active screen. Screens are independent modules so
 // new game modes / screens can be slotted in without touching each other.
 import { GameScreen } from './screens/GameScreen';
+import { ChallengeScreen } from './screens/ChallengeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useUi, type Screen } from './store/uiStore';
 import { useSettings } from './store/settingsStore';
 import { t } from './i18n';
 
-const NAV: { screen: Screen; key: 'play' | 'history' | 'settings' }[] = [
+const NAV: { screen: Screen; key: 'play' | 'challenge' | 'history' | 'settings' }[] = [
   { screen: 'play', key: 'play' },
+  { screen: 'challenge', key: 'challenge' },
   { screen: 'history', key: 'history' },
   { screen: 'settings', key: 'settings' },
 ];
@@ -36,6 +38,7 @@ export default function App() {
       </header>
       <main className="content">
         {screen === 'play' && <GameScreen />}
+        {screen === 'challenge' && <ChallengeScreen />}
         {screen === 'history' && <HistoryScreen />}
         {screen === 'settings' && <SettingsScreen />}
       </main>

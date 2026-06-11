@@ -17,6 +17,10 @@ export function FlagPrompt() {
   const showPickedFlag = useSettings((s) => s.showPickedFlag);
   const mode = GAME_MODES[modeId];
 
+  // Flag size comes from the --fi-size variable set on the overlay (see
+  // RoundBoard); falls back to the 3rem base if rendered outside one.
+  const flagStyle = { fontSize: 'var(--fi-size, 3rem)' };
+
   // After a wrong guess (opt-in), show the flag of the country the player picked
   // beside the question flag, at the same size, for comparison.
   const pickedMeta = selectedId ? countryById.get(selectedId) : undefined;
@@ -31,9 +35,13 @@ export function FlagPrompt() {
           {/* Empty left cell keeps the question flag centered whether or not
               the picked flag is shown on the right. */}
           <span aria-hidden />
-          <Flag alpha2={targetAlpha2} className="flag-big" />
+          <Flag alpha2={targetAlpha2} className="flag-big" style={flagStyle} />
           {showPicked && (
-            <Flag alpha2={pickedMeta.alpha2} className="flag-big prompt-flag-picked" />
+            <Flag
+              alpha2={pickedMeta.alpha2}
+              className="flag-big prompt-flag-picked"
+              style={flagStyle}
+            />
           )}
         </div>
       )}

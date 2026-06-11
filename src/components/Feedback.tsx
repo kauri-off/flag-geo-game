@@ -9,11 +9,18 @@ export function Feedback() {
   const status = useGame((s) => s.status);
   const lastCorrect = useGame((s) => s.lastCorrect);
   const lastTimeMs = useGame((s) => s.lastTimeMs);
+  const lastTimedOut = useGame((s) => s.lastTimedOut);
   const targetId = useGame((s) => s.targetId);
   const selectedId = useGame((s) => s.selectedId);
   const language = useSettings((s) => s.language);
 
   if (status !== 'revealed') return null;
+
+  const headline = lastCorrect
+    ? t('correct', language)
+    : lastTimedOut
+      ? t('timeUpMsg', language)
+      : t('wrong', language);
 
   const answer = countryName(targetId, language, countryById.get(targetId ?? '')?.alpha3);
   const picked = selectedId
@@ -23,7 +30,7 @@ export function Feedback() {
   return (
     <div className={`feedback ${lastCorrect ? 'ok' : 'bad'}`}>
       <div className="feedback-headline">
-        {lastCorrect ? t('correct', language) : t('wrong', language)}
+        {headline}
         <span className="feedback-time"> · {formatTime(lastTimeMs)}</span>
       </div>
       {!lastCorrect && (

@@ -84,7 +84,113 @@ body {
   outline: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* answer countdown */
+.timer {
+  position: relative;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.timer-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear, background-color 0.2s ease;
+}
+.timer.low .timer-bar { background: var(--bad); }
+.timer-val {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* challenge HUD + results */
+.challenge-hud {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.hud-item { display: flex; flex-direction: column; }
+.hud-key {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.hud-val { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hud-actions { margin-left: auto; display: flex; gap: 10px; }
+
+.score-hero { text-align: center; padding: 8px 0 4px; }
+.score-big {
+  font-size: 3.2rem;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.extra-stats { display: flex; gap: 10px; }
+.extra-stats .stat { flex: 1; }
+.scoring-note { font-size: 0.85rem; margin: 4px 0 0; }
+.num-input {
+  width: 76px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.9rem;
+}
+
 .map-area { position: relative; }
+
+/* Flag prompt + timer floating over the top-left corner of the map. The
+   container ignores pointer events so panning/zooming the map underneath the
+   overlay still works. */
+.map-overlay {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 5;
+  /* Width is sized to hold two flags (1.333em wide each at --fi-size) plus the
+     gap and padding, so the prompt text wraps instead of stretching the panel.
+     Capped to a slice of the map for safety at large flag sizes. */
+  --fi-size: 3rem;
+  width: min(90%, calc(var(--fi-size) * 1.333 * 2 + 10px + 26px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.map-overlay .prompt { text-align: left; }
+.map-overlay .prompt-text { margin-bottom: 6px; font-size: 0.82rem; }
+/* Override the centering grid with a flex row (no empty spacer column) that
+   centers its contents — so a lone flag sits centered and the reveal pair is
+   centered as a group. */
+.map-overlay .prompt-flags { display: flex; justify-content: center; gap: 10px; }
+.map-overlay .prompt-flags > [aria-hidden] { display: none; }
+.map-overlay .timer { width: 100%; }
+
+@media (max-width: 560px) {
+  .map-overlay { min-width: 0; padding: 8px; }
+  .map-overlay .prompt-text { font-size: 0.72rem; }
+}
 
 .map-wrap {
   position: relative;

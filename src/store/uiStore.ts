@@ -1,7 +1,7 @@
 // Lightweight UI navigation state (which screen is showing). Not persisted.
 import { create } from 'zustand';
 
-export type Screen = 'play' | 'history' | 'settings';
+export type Screen = 'play' | 'challenge' | 'history' | 'settings';
 
 interface UiState {
   screen: Screen;

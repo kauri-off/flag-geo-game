@@ -9,10 +9,13 @@ export function GameControls() {
   const selectedId = useGame((s) => s.selectedId);
   const confirm = useGame((s) => s.confirm);
   const next = useGame((s) => s.next);
+  const challenge = useGame((s) => s.challenge);
   const language = useSettings((s) => s.language);
   const confirmMode = useSettings((s) => s.confirmMode);
 
   if (status === 'revealed') {
+    // In a challenge the Next button lives in the HUD, next to Quit.
+    if (challenge) return null;
     return (
       <div className="controls">
         <button className="btn primary big" onClick={next}>

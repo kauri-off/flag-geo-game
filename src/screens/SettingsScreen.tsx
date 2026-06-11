@@ -110,6 +110,21 @@ export function SettingsScreen() {
       </section>
 
       <section className="settings-group">
+        <h3>{t('flagSize', lang)}</h3>
+        <div className="slider-row">
+          <input
+            type="range"
+            min={50}
+            max={200}
+            step={10}
+            value={s.flagSize}
+            onChange={(e) => s.setFlagSize(Number(e.target.value))}
+          />
+          <span className="slider-val">{s.flagSize}%</span>
+        </div>
+      </section>
+
+      <section className="settings-group">
         <h3>{t('mapSize', lang)}</h3>
         <div className="slider-row">
           <input
@@ -121,6 +136,23 @@ export function SettingsScreen() {
             onChange={(e) => s.setMapSize(Number(e.target.value))}
           />
           <span className="slider-val">{s.mapSize}%</span>
+        </div>
+      </section>
+
+      <section className="settings-group">
+        <h3>{t('answerTime', lang)}</h3>
+        <div className="slider-row">
+          <input
+            type="range"
+            min={0}
+            max={60}
+            step={1}
+            value={s.answerSeconds}
+            onChange={(e) => s.setAnswerSeconds(Number(e.target.value))}
+          />
+          <span className="slider-val">
+            {s.answerSeconds === 0 ? t('noLimit', lang) : `${s.answerSeconds}s`}
+          </span>
         </div>
       </section>
 

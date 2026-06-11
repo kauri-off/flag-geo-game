@@ -1,7 +1,7 @@
 // SVG world map renderer with pan/zoom and click selection. Self-contained: it
 // renders the precomputed shapes from ../map/world and reports country clicks to
 // the game store. No external tiles or APIs.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { shapes, MAP_WIDTH, MAP_HEIGHT } from "../map/world";
 import { countryName } from "../i18n";
 import { sameFlag } from "../game/flagTwins";
@@ -26,7 +26,7 @@ const labelCandidates = shapes
   .filter((s) => s.guessable)
   .sort((a, b) => b.area - a.area);
 
-export function WorldMap() {
+export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [tf, setTf] = useState<Transform>({ k: 1, x: 0, y: 0 });
 
@@ -100,6 +100,10 @@ export function WorldMap() {
   };
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
+    // Only react to the end of a real press. Without this guard a bare
+    // pointerleave (cursor exiting the frame with no button down) would re-run
+    // the selection below using the stale ref from the previous click.
+    if (!d.active) return;
     d.active = false;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -193,6 +197,7 @@ export function WorldMap() {
 
   return (
     <div className="map-wrap" style={{ width: `${mapSize}%` }}>
+      {overlay}
       <svg
         ref={svgRef}
         className="world-map"
