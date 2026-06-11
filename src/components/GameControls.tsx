@@ -27,24 +27,30 @@ export function GameControls() {
   }
 
   if (status === 'guessing') {
-    return (
-      <div className="controls">
-        {confirmMode === 'spacebar' ? (
-          <>
-            <button
-              className="btn primary big"
-              onClick={confirm}
-              disabled={!selectedId}
-            >
-              {t('confirm', language)}
-            </button>
+    if (confirmMode === 'spacebar') {
+      return (
+        <div className="controls">
+          <button
+            className="btn primary big"
+            onClick={confirm}
+            disabled={!selectedId}
+          >
+            {t('confirm', language)}
+          </button>
+          {/* The "select a country" prompt is hidden during a challenge. */}
+          {(selectedId || !challenge) && (
             <span className="hint">
               {selectedId ? t('pressSpace', language) : t('selectACountry', language)}
             </span>
-          </>
-        ) : (
-          <span className="hint">{t('selectACountry', language)}</span>
-        )}
+          )}
+        </div>
+      );
+    }
+    // Click-to-confirm: only the prompt, and not during a challenge.
+    if (challenge) return null;
+    return (
+      <div className="controls">
+        <span className="hint">{t('selectACountry', language)}</span>
       </div>
     );
   }

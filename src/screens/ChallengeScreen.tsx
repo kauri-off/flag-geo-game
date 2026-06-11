@@ -12,6 +12,7 @@ import { CONTINENTS, type SizeBucket } from '../data/countries';
 import {
   DEFAULT_CHALLENGE,
   ROUND_PRESETS,
+  ATTEMPT_PRESETS,
   PERFECT_SEC,
   analyzeChallenge,
 } from '../game/challenge';
@@ -41,6 +42,7 @@ function ChallengeSetup() {
 
   const [rounds, setRounds] = useState(DEFAULT_CHALLENGE.rounds);
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_CHALLENGE.timeLimitSec);
+  const [attempts, setAttempts] = useState(DEFAULT_CHALLENGE.attempts);
   const [difficulty, setDifficulty] = useState<DifficultyFilter>(DEFAULT_CHALLENGE.difficulty);
 
   const toggleContinent = (c: string) =>
@@ -52,7 +54,7 @@ function ChallengeSetup() {
     }));
 
   const start = () =>
-    startChallenge({ rounds: Math.max(1, rounds), timeLimitSec, difficulty });
+    startChallenge({ rounds: Math.max(1, rounds), timeLimitSec, attempts, difficulty });
 
   return (
     <div className="settings">
@@ -97,6 +99,22 @@ function ChallengeSetup() {
           </span>
         </div>
         <p className="muted scoring-note">{t('scoringNote', lang)}</p>
+      </section>
+
+      <section className="settings-group">
+        <h3>{t('attempts', lang)}</h3>
+        <div className="chip-row">
+          {ATTEMPT_PRESETS.map((n) => (
+            <button
+              key={n}
+              className={`chip ${attempts === n ? 'on' : ''}`}
+              onClick={() => setAttempts(n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <p className="muted scoring-note">{t('attemptsNote', lang)}</p>
       </section>
 
       <section className="settings-group">
@@ -147,6 +165,7 @@ function ChallengePlay() {
   const results = useGame((s) => s.challenge!.results);
   const score = useGame((s) => s.challenge!.score);
   const status = useGame((s) => s.status);
+  const attemptsLeft = useGame((s) => s.attemptsLeft);
   const next = useGame((s) => s.next);
   const endChallenge = useGame((s) => s.endChallenge);
 
@@ -164,6 +183,12 @@ function ChallengePlay() {
           <span className="hud-key">{t('score', lang)}</span>
           <span className="hud-val">{score}</span>
         </div>
+        {config.attempts > 1 && (
+          <div className="hud-item">
+            <span className="hud-key">{t('attempts', lang)}</span>
+            <span className="hud-val">{attemptsLeft}/{config.attempts}</span>
+          </div>
+        )}
         <div className="hud-actions">
           {status === 'revealed' && (
             <button className="btn primary" onClick={next}>{t('next', lang)}</button>

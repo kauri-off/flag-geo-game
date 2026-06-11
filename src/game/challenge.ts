@@ -9,6 +9,8 @@ export interface ChallengeConfig {
   rounds: number;
   /** Seconds allowed per answer; 0 = no limit. */
   timeLimitSec: number;
+  /** Guesses allowed per round before it's locked as wrong; 1 = single guess. */
+  attempts: number;
   difficulty: DifficultyFilter;
 }
 
@@ -82,8 +84,12 @@ export function analyzeChallenge(state: ChallengeState): ChallengeAnalysis {
 export const DEFAULT_CHALLENGE: ChallengeConfig = {
   rounds: 20,
   timeLimitSec: 10,
+  attempts: 1,
   difficulty: { continents: [], size: 'all' },
 };
 
 /** Preset round counts offered in the setup form. */
 export const ROUND_PRESETS = [10, 20, 50, 100] as const;
+
+/** Preset per-round guess counts offered in the setup form. */
+export const ATTEMPT_PRESETS = [1, 2, 3] as const;

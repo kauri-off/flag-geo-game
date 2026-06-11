@@ -31,6 +31,10 @@ export interface GameState {
   lastTimeMs: number | null;
   /** The just-revealed round ended because the answer timer ran out. */
   lastTimedOut: boolean;
+  /** Guesses still available this round (challenge multi-attempt; 1 otherwise). */
+  attemptsLeft: number;
+  /** Countries already guessed wrong this round, kept for the red highlight. */
+  wrongPicks: string[];
   session: SessionStats;
   /** Active scored run, or null during free practice. */
   challenge: ChallengeState | null;
@@ -59,6 +63,8 @@ export const useGame = create<GameState>((set, get) => ({
   lastCorrect: null,
   lastTimeMs: null,
   lastTimedOut: false,
+  attemptsLeft: 1,
+  wrongPicks: [],
   session: emptySession(),
   challenge: null,
 
@@ -89,14 +95,18 @@ export const useGame = create<GameState>((set, get) => ({
       lastCorrect: null,
       lastTimeMs: null,
       lastTimedOut: false,
+      attemptsLeft: challenge ? challenge.config.attempts ?? 1 : 1,
+      wrongPicks: [],
       startedAt: performance.now(),
       pausedAt: null,
     });
   },
 
   select: (id) => {
-    const { status } = get();
+    const { status, wrongPicks } = get();
     if (status !== 'guessing') return;
+    // A country already guessed wrong this round can't be picked again.
+    if (wrongPicks.includes(id)) return;
     set({ selectedId: id });
     const settings = useSettings.getState();
     // In click-to-confirm mode the result sound follows immediately, so skip the
@@ -109,7 +119,7 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   confirm: () => {
-    const { status, targetId, targetAlpha2, selectedId, startedAt } = get();
+    const { status, targetId, targetAlpha2, selectedId, startedAt, challenge, attemptsLeft, lastTimedOut, wrongPicks } = get();
     if (status !== 'guessing' || !targetId || !targetAlpha2) return;
 
     const timeMs = performance.now() - startedAt;
@@ -117,6 +127,18 @@ export const useGame = create<GameState>((set, get) => ({
     const correct = !!selectedId && sameFlag(selectedId, targetId);
     const settings = useSettings.getState();
     const mode = settings.mode;
+
+    // Challenge multi-attempt: a wrong (non-timeout) guess with tries to spare
+    // doesn't end the round — mark the pick and let the player try again.
+    if (challenge && selectedId && !correct && !lastTimedOut && attemptsLeft > 1) {
+      if (settings.soundOn) playWrong();
+      set({
+        attemptsLeft: attemptsLeft - 1,
+        wrongPicks: [...wrongPicks, selectedId],
+        selectedId: null,
+      });
+      return;
+    }
 
     if (settings.soundOn) (correct ? playCorrect : playWrong)();
 

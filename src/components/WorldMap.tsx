@@ -33,6 +33,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
   const selectedId = useGame((s) => s.selectedId);
+  const wrongPicks = useGame((s) => s.wrongPicks);
   const select = useGame((s) => s.select);
 
   const showLabels = useSettings((s) => s.showLabels);
@@ -158,10 +159,12 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
         if (revealed && id && id === selectedId)
           // green if the pick's flag matches the target (twin flags), else red
           return targetId && sameFlag(id, targetId) ? "#3fb27f" : "#e25563";
+        // A spent wrong guess (challenge multi-attempt) stays red while guessing.
+        if (id && wrongPicks.includes(id)) return "#e25563";
         if (id && id === selectedId) return "#4f86c6"; // current selection
         return "#b9c5d0"; // land
       },
-    [status, targetId, selectedId],
+    [status, targetId, selectedId, wrongPicks],
   );
 
   // Decide which labels to draw for the current view: project each centroid to
