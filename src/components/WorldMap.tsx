@@ -239,7 +239,7 @@ export function WorldMap() {
               x={l.cx}
               y={l.cy}
               fontSize={labelSize}
-              strokeWidth={labelSize * 0.1}
+              strokeWidth={labelSize * 0.08}
               className="country-label"
             >
               {l.name}
