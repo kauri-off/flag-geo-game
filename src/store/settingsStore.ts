@@ -46,7 +46,7 @@ export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
       mode: DEFAULT_MODE,
-      language: 'ru',
+      language: 'en',
       showLabels: true,
       confirmMode: 'click',
       difficulty: { continents: [], size: 'all' },
