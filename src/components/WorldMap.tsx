@@ -284,7 +284,14 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
                 className="country-label"
                 // Inline style (not the `fill` attribute) so it overrides the
                 // .country-label CSS rule, which wins over presentation attributes.
-                style={fill === "#b9c5d0" ? undefined : { fill }}
+                // Once the country is colored, use white text with a black halo:
+                // tinting the text to match the fill makes it the same hue as the
+                // country and hard to read, so we go high-contrast instead.
+                style={
+                  fill === "#b9c5d0"
+                    ? undefined
+                    : { fill: "#ffffff", stroke: "#000000" }
+                }
               >
                 {l.name}
               </text>
