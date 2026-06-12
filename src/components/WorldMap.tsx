@@ -24,7 +24,7 @@ interface Transform {
 }
 
 const MIN_K = 1;
-const MAX_K = 40;
+const MAX_K = 120;
 const LABEL_PX = 11; // on-screen label height in viewBox units
 
 // Label candidates, largest country first. Greedy declutter keeps the biggest
@@ -58,6 +58,63 @@ const TAU_ZOOM = 0.04;
 const SNAP_K = 4e-3;
 const TAU_FLY = 0.16;
 
+// --- Van Wijk & Nuij smooth zoom/pan (the Google-Maps "fly") ---
+// A view is described as [centerX, centerY, viewWidth] in world units. The arc
+// zooms out just enough to bridge the gap, pans, then zooms back in — instead of
+// a straight interpolation that rushes the camera past everything. RHO tunes how
+// much it backs out (√2 ≈ the d3 default: a balanced "not fully out" arc).
+const RHO = Math.SQRT2;
+type View = [number, number, number];
+const viewOf = (t: Transform): View => [
+  (MAP_WIDTH / 2 - t.x) / t.k,
+  (MAP_HEIGHT / 2 - t.y) / t.k,
+  MAP_WIDTH / t.k,
+];
+const transformOf = ([cx, cy, w]: View): Transform => {
+  const k = MAP_WIDTH / w;
+  return { k, x: MAP_WIDTH / 2 - cx * k, y: MAP_HEIGHT / 2 - cy * k };
+};
+// Returns the path function at(t) (t in [0,1]) and S, its total "perceived"
+// length — used to pick a watchable duration.
+function interpolateView(p0: View, p1: View) {
+  const [ux0, uy0, w0] = p0;
+  const [ux1, uy1, w1] = p1;
+  const dx = ux1 - ux0;
+  const dy = uy1 - uy0;
+  const d2 = dx * dx + dy * dy;
+  const rho2 = RHO * RHO; // 2
+  const rho4 = rho2 * rho2; // 4
+  let S: number;
+  let at: (t: number) => View;
+  if (d2 < 1e-12) {
+    // Pure zoom, no pan: exponential interpolation of the view width.
+    S = Math.log(w1 / w0) / RHO; // signed
+    at = (t) => [ux0 + t * dx, uy0 + t * dy, w0 * Math.exp(RHO * t * S)];
+  } else {
+    const d1 = Math.sqrt(d2);
+    const b0 = (w1 * w1 - w0 * w0 + rho4 * d2) / (2 * w0 * rho2 * d1);
+    const b1 = (w1 * w1 - w0 * w0 - rho4 * d2) / (2 * w1 * rho2 * d1);
+    const r0 = Math.log(Math.sqrt(b0 * b0 + 1) - b0);
+    const r1 = Math.log(Math.sqrt(b1 * b1 + 1) - b1);
+    S = (r1 - r0) / RHO;
+    const cosh = (x: number) => (Math.exp(x) + Math.exp(-x)) / 2;
+    const sinh = (x: number) => (Math.exp(x) - Math.exp(-x)) / 2;
+    const tanh = (x: number) => {
+      const e = Math.exp(2 * x);
+      return (e - 1) / (e + 1);
+    };
+    const cr0 = cosh(r0);
+    at = (t) => {
+      const s = t * S * RHO;
+      const u = (w0 / (rho2 * d1)) * (cr0 * tanh(s + r0) - sinh(r0));
+      return [ux0 + u * dx, uy0 + u * dy, (w0 * cr0) / cosh(s + r0)];
+    };
+  }
+  return { at, S };
+}
+// Slow, symmetric ease so the flight starts and ends gently (no whip at t=0).
+const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+
 export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [tf, setTf] = useState<Transform>(savedTf);
@@ -75,9 +132,15 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const animRef = useRef<number | null>(null);
   const targetRef = useRef<Transform>(tf);
   const lastTsRef = useRef(0);
+  // Active Van Wijk flight: its path function, total duration, and start time.
+  const arcRef = useRef<{
+    at: (t: number) => View;
+    dur: number;
+    t0: number;
+  } | null>(null);
   // Which animator the loop is running, and (for zoom) the screen point + the
   // world point under it to keep pinned together as the scale changes.
-  const modeRef = useRef<"zoom" | "fly">("zoom");
+  const modeRef = useRef<"zoom" | "fly" | "arc">("zoom");
   const focalRef = useRef({ vx: 0, vy: 0, wx: 0, wy: 0 });
 
   const status = useGame((s) => s.status);
@@ -210,14 +273,17 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     }
   }, []);
 
-  // --- the animator (single rAF loop, two modes) ---
+  // --- the animator (single rAF loop, three modes) ---
   // zoom: proportional (capless) ease of the scale toward target, keeping the
   //   cursor's world point pinned (focalRef). Velocity ∝ remaining distance, so
   //   there's no max speed: big scrolls whip over, small ones snap, and the view
   //   tracks the target tightly through rapid up-down loops.
-  // fly:  exponential ease of the whole transform toward target (reveal / reset),
-  //   which also pans far, so a decelerating glide reads better there.
-  const startAnim = useCallback((mode: "zoom" | "fly") => {
+  // fly:  exponential ease of the whole transform toward target (reset button),
+  //   a quick decelerating glide.
+  // arc:  time-driven Van Wijk path (flag-prompt reveal). Eased start AND end so
+  //   it never whips, and it zooms out-then-in so the player can follow where the
+  //   country is, Google-Maps style.
+  const startAnim = useCallback((mode: "zoom" | "fly" | "arc") => {
     modeRef.current = mode;
     if (animRef.current !== null) return; // loop already spinning
     lastTsRef.current = performance.now();
@@ -236,6 +302,18 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
         // Derive x/y from k so the focal world point stays under the cursor.
         setTf(done ? tgt : { k, x: f.vx - f.wx * k, y: f.vy - f.wy * k });
         animRef.current = done ? null : requestAnimationFrame(step);
+        return;
+      }
+      if (modeRef.current === "arc") {
+        const arc = arcRef.current;
+        if (!arc) {
+          animRef.current = null;
+          return;
+        }
+        const raw = Math.min(1, (now - arc.t0) / arc.dur);
+        const view = arc.at(smoother(raw));
+        setTf(transformOf(view));
+        animRef.current = raw >= 1 ? null : requestAnimationFrame(step);
         return;
       }
       const a = 1 - Math.exp(-dt / TAU_FLY);
@@ -275,11 +353,26 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     [startAnim],
   );
 
-  // Glide to an explicit target transform (used by the reveal fit-zoom / reset).
+  // Quick exponential glide to a target transform (reset button).
   const flyTo = useCallback(
     (target: Transform) => {
       targetRef.current = target;
       startAnim("fly");
+    },
+    [startAnim],
+  );
+
+  // Smooth Van Wijk flight (flag-prompt reveal): zoom out, pan, zoom in, with an
+  // eased start so it doesn't lurch. Duration scales with the arc's perceived
+  // length S, clamped so short hops still feel deliberate and long flights stay
+  // watchable without dragging.
+  const flyArc = useCallback(
+    (target: Transform) => {
+      const { at, S } = interpolateView(viewOf(tfRef.current), viewOf(target));
+      const dur = Math.min(2800, Math.max(900, Math.abs(S) * 850));
+      arcRef.current = { at, dur, t0: performance.now() };
+      targetRef.current = target;
+      startAnim("arc");
     },
     [startAnim],
   );
@@ -336,7 +429,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       const cand = fitTransform(shape.bbox, off);
       if (Math.abs(cand.x - cur.x) < Math.abs(best.x - cur.x)) best = cand;
     }
-    flyTo(best);
+    flyArc(best);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapZoomNonce]);
 
