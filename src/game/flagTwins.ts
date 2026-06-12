@@ -8,10 +8,12 @@
 //   250 France + overseas territories that fly the plain blue-white-red
 //       tricolor: 652 St Barthélemy, 663 St Martin, 312 Guadeloupe,
 //       638 Réunion, 175 Mayotte, 666 St Pierre & Miquelon, 876 Wallis & Futuna
+//   826 United Kingdom / 654 St Helena, Ascension & Tristan da Cunha
 const TWIN_GROUPS: string[][] = [
   ['642', '148'],
   ['360', '492'],
   ['250', '652', '663', '312', '638', '175', '666', '876'],
+  ['826', '654'],
 ];
 
 // id -> set of acceptable ids (including itself).

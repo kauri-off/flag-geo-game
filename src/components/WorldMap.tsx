@@ -1,7 +1,14 @@
 // SVG world map renderer with pan/zoom and click selection. Self-contained: it
 // renders the precomputed shapes from ../map/world and reports country clicks to
 // the game store. No external tiles or APIs.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { shapes, MAP_WIDTH, MAP_HEIGHT } from "../map/world";
 import { countryName } from "../i18n";
 import { sameFlag } from "../game/flagTwins";
@@ -34,18 +41,44 @@ const guessableShapes = shapes.filter((s) => s.guessable);
 const shapeById = new Map(shapes.filter((s) => s.id).map((s) => [s.id, s]));
 
 const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
-const easeInOut = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// Module-level so the current pan/zoom survives the WorldMap unmounting and
+// remounting (e.g. switching tabs and coming back) instead of snapping to 1:1.
+let savedTf: Transform = { k: 1, x: 0, y: 0 };
+
+// Wheel/button zooms use proportional (exponential) smoothing with NO speed cap:
+// each frame the scale closes a fixed fraction of the remaining distance, so the
+// velocity is proportional to how far the target is. Big/fast scrolls whip toward
+// the target faster than the eye can track, small ones snap almost instantly, and
+// the view stays glued to the target even when you scroll up-down in a loop — the
+// Google-Maps feel. TAU_ZOOM is the time constant (smaller = tighter tracking);
+// SNAP_K is the relative closeness at which we finish, so there's no visible crawl
+// through the last sliver. Reveal/reset fly-tos use TAU_FLY (they also pan far).
+const TAU_ZOOM = 0.04;
+const SNAP_K = 4e-3;
+const TAU_FLY = 0.16;
 
 export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [tf, setTf] = useState<Transform>({ k: 1, x: 0, y: 0 });
+  const [tf, setTf] = useState<Transform>(savedTf);
   // Live mirror of `tf` so event/effect callbacks read the latest transform
-  // without re-subscribing on every pan frame.
+  // without re-subscribing on every pan frame. Also stash it at module scope so
+  // it persists across unmount/remount (tab switches).
   const tfRef = useRef(tf);
   tfRef.current = tf;
-  // requestAnimationFrame id of an in-flight fly-to, or null when idle.
+  savedTf = tf;
+  // The animator continuously eases the live `tf` toward `targetRef` on a single
+  // rAF loop (animRef). Wheel/button/reveal all just nudge the target and kick
+  // the loop; nothing sets the rendered transform abruptly. `tauRef` is the
+  // current smoothing time constant; `lastTsRef` is the previous frame time for
+  // framerate-independent stepping.
   const animRef = useRef<number | null>(null);
+  const targetRef = useRef<Transform>(tf);
+  const lastTsRef = useRef(0);
+  // Which animator the loop is running, and (for zoom) the screen point + the
+  // world point under it to keep pinned together as the scale changes.
+  const modeRef = useRef<"zoom" | "fly">("zoom");
+  const focalRef = useRef({ vx: 0, vy: 0, wx: 0, wy: 0 });
 
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
@@ -88,6 +121,9 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     cancelAnim();
+    // Freeze the target where the view currently sits so the (now stopped)
+    // animator has nothing to drift toward while the user drags.
+    targetRef.current = tfRef.current;
     const el = e.target as Element;
     drag.current = {
       active: true,
@@ -116,7 +152,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       drag.current.moved = true;
     drag.current.lx = e.clientX;
     drag.current.ly = e.clientY;
-    setTf((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+    setTf((p) => {
+      const next = { ...p, x: p.x + dx, y: p.y + dy };
+      targetRef.current = next;
+      return next;
+    });
   };
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
@@ -163,24 +203,6 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     }
   };
 
-  // --- zoom toward cursor (native non-passive wheel listener) ---
-  const zoomAt = useCallback(
-    (clientX: number, clientY: number, factor: number) => {
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const vx = ((clientX - rect.left) / rect.width) * MAP_WIDTH;
-      const vy = ((clientY - rect.top) / rect.height) * MAP_HEIGHT;
-      setTf((p) => {
-        const k = Math.min(MAX_K, Math.max(MIN_K, p.k * factor));
-        const ratio = k / p.k;
-        return { k, x: vx - (vx - p.x) * ratio, y: vy - (vy - p.y) * ratio };
-      });
-    },
-    [],
-  );
-
-  // --- animated fly-to (Google-Maps style ease into a target transform) ---
   const cancelAnim = useCallback(() => {
     if (animRef.current !== null) {
       cancelAnimationFrame(animRef.current);
@@ -188,39 +210,78 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     }
   }, []);
 
+  // --- the animator (single rAF loop, two modes) ---
+  // zoom: proportional (capless) ease of the scale toward target, keeping the
+  //   cursor's world point pinned (focalRef). Velocity ∝ remaining distance, so
+  //   there's no max speed: big scrolls whip over, small ones snap, and the view
+  //   tracks the target tightly through rapid up-down loops.
+  // fly:  exponential ease of the whole transform toward target (reveal / reset),
+  //   which also pans far, so a decelerating glide reads better there.
+  const startAnim = useCallback((mode: "zoom" | "fly") => {
+    modeRef.current = mode;
+    if (animRef.current !== null) return; // loop already spinning
+    lastTsRef.current = performance.now();
+    const step = (now: number) => {
+      // Clamp dt so a backgrounded tab (huge gap) doesn't snap the view.
+      const dt = Math.min(0.05, Math.max(0, (now - lastTsRef.current) / 1000));
+      lastTsRef.current = now;
+      const cur = tfRef.current;
+      const tgt = targetRef.current;
+      if (modeRef.current === "zoom") {
+        const a = 1 - Math.exp(-dt / TAU_ZOOM);
+        const k = cur.k + (tgt.k - cur.k) * a;
+        // Finish once within SNAP_K of target so the last sliver doesn't crawl.
+        const done = Math.abs(tgt.k - k) <= tgt.k * SNAP_K;
+        const f = focalRef.current;
+        // Derive x/y from k so the focal world point stays under the cursor.
+        setTf(done ? tgt : { k, x: f.vx - f.wx * k, y: f.vy - f.wy * k });
+        animRef.current = done ? null : requestAnimationFrame(step);
+        return;
+      }
+      const a = 1 - Math.exp(-dt / TAU_FLY);
+      const next: Transform = {
+        k: cur.k + (tgt.k - cur.k) * a,
+        x: cur.x + (tgt.x - cur.x) * a,
+        y: cur.y + (tgt.y - cur.y) * a,
+      };
+      const done =
+        Math.abs(tgt.k - next.k) < tgt.k * 1e-3 &&
+        Math.hypot(tgt.x - next.x, tgt.y - next.y) < 0.25;
+      setTf(done ? tgt : next);
+      animRef.current = done ? null : requestAnimationFrame(step);
+    };
+    animRef.current = requestAnimationFrame(step);
+  }, []);
+
+  // --- zoom toward a screen point at constant speed ---
+  const zoomToward = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const vx = ((clientX - rect.left) / rect.width) * MAP_WIDTH;
+      const vy = ((clientY - rect.top) / rect.height) * MAP_HEIGHT;
+      // Pin the world point currently under the cursor, taken from the RENDERED
+      // frame so an in-flight glide continues without a jump.
+      const cur = tfRef.current;
+      const wx = (vx - cur.x) / cur.k;
+      const wy = (vy - cur.y) / cur.k;
+      focalRef.current = { vx, vy, wx, wy };
+      // Compound the scale goal off the *target* so rapid scrolls keep deepening.
+      const k = clampK(targetRef.current.k * factor);
+      targetRef.current = { k, x: vx - wx * k, y: vy - wy * k };
+      startAnim("zoom");
+    },
+    [startAnim],
+  );
+
+  // Glide to an explicit target transform (used by the reveal fit-zoom / reset).
   const flyTo = useCallback(
     (target: Transform) => {
-      cancelAnim();
-      // Start from the live transform (tfRef mirrors it, so back-to-back flights
-      // chain from wherever the previous one was interrupted).
-      const from = tfRef.current;
-      // Duration scales with the work the eye does: how far the destination's
-      // focal point has to travel across the screen, plus how many zoom octaves
-      // the scale changes. Small nudges stay snappy; cross-map / deep-zoom
-      // flights take longer — the Google-Maps feel.
-      const wx = (MAP_WIDTH / 2 - target.x) / target.k;
-      const wy = (MAP_HEIGHT / 2 - target.y) / target.k;
-      const travel = Math.hypot(
-        from.x + wx * from.k - MAP_WIDTH / 2,
-        from.y + wy * from.k - MAP_HEIGHT / 2,
-      );
-      const zoomMag = Math.abs(Math.log2(target.k / from.k));
-      const ms = Math.min(1400, Math.max(300, 250 + travel * 0.6 + zoomMag * 90));
-      const start = performance.now();
-      const step = (now: number) => {
-        const t = Math.min(1, (now - start) / ms);
-        const e = easeInOut(t);
-        setTf({
-          k: from.k + (target.k - from.k) * e,
-          x: from.x + (target.x - from.x) * e,
-          y: from.y + (target.y - from.y) * e,
-        });
-        if (t < 1) animRef.current = requestAnimationFrame(step);
-        else animRef.current = null;
-      };
-      animRef.current = requestAnimationFrame(step);
+      targetRef.current = target;
+      startAnim("fly");
     },
-    [cancelAnim],
+    [startAnim],
   );
 
   // Compute the transform that fits a shape's bbox into ~70% of the viewBox,
@@ -246,12 +307,16 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      cancelAnim();
-      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.2 : 1 / 1.2);
+      // Normalize delta across deltaMode (pixels / lines / pages) and devices, then
+      // map it through exp() so the zoom is proportional and continuous: a gentle
+      // trackpad swipe nudges a little, a hard wheel notch more, both smooth.
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const norm = Math.max(-200, Math.min(200, e.deltaY * unit));
+      zoomToward(e.clientX, e.clientY, Math.exp(-norm * 0.0024));
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [zoomAt, cancelAnim]);
+  }, [zoomToward]);
 
   // Fly-zoom into the current target country when the flag prompt asks for it
   // (the bumped nonce). The ref is seeded with the mount-time nonce so only a
@@ -276,16 +341,12 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   }, [mapZoomNonce]);
 
   const zoomButton = (factor: number) => {
-    cancelAnim();
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    zoomToward(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
   };
-  const reset = () => {
-    cancelAnim();
-    setTf({ k: 1, x: 0, y: 0 });
-  };
+  const reset = () => flyTo({ k: 1, x: 0, y: 0 });
 
   const fillFor = useMemo(
     () =>
@@ -356,8 +417,13 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const visibleLabels = useMemo(() => {
     if (!showLabels) return [];
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    const out: { id: string; cx: number; cy: number; name: string; off: number }[] =
-      [];
+    const out: {
+      id: string;
+      cx: number;
+      cy: number;
+      name: string;
+      off: number;
+    }[] = [];
     for (const s of labelCandidates) {
       const name = countryName(s.id, language, s.rawName);
       const halfW = name.length * LABEL_PX * 0.27 + 2;
