@@ -45,33 +45,52 @@ const pathGen = geoPath(projection);
 // Anchor the label on the country's LARGEST landmass rather than the centroid of
 // the whole feature. Countries with far-flung overseas territories (e.g. France
 // incl. French Guiana, Norway incl. Svalbard) otherwise get a centroid out in the
-// ocean.
-function labelAnchor(f: Feature<Geometry, { name?: string }>): [number, number] {
-  const g = f.geometry;
-  if (g.type === 'MultiPolygon') {
-    let best: Position[][] = g.coordinates[0];
-    let bestArea = -1;
-    for (const coords of g.coordinates) {
+// ocean. Scans every polygon across all of the country's features and returns the
+// centroid of the biggest one.
+function labelAnchor(
+  features: Feature<Geometry, { name?: string }>[],
+): [number, number] {
+  let best: Position[][] | null = null;
+  let bestArea = -1;
+  for (const f of features) {
+    const g = f.geometry;
+    const polys =
+      g.type === 'MultiPolygon'
+        ? g.coordinates
+        : g.type === 'Polygon'
+          ? [g.coordinates]
+          : [];
+    for (const coords of polys) {
       const a = geoArea({ type: 'Polygon', coordinates: coords });
       if (a > bestArea) {
         bestArea = a;
         best = coords;
       }
     }
-    return geoCentroid({ type: 'Polygon', coordinates: best });
   }
-  return geoCentroid(f);
+  return best
+    ? geoCentroid({ type: 'Polygon', coordinates: best })
+    : geoCentroid(features[0]);
 }
 
-function toShape(f: Feature<Geometry, { name?: string }>): MapShape | null {
-  const d = pathGen(f);
+// Build one shape from one or more TopoJSON features that share a country id.
+// Several features can normalise to the same id (e.g. "Australia" and the tiny
+// "Ashmore and Cartier Is.", both ISO 036); merging them yields a single land
+// outline, a single label, and a single click target instead of duplicates.
+function toShape(
+  features: Feature<Geometry, { name?: string }>[],
+): MapShape | null {
+  const d = features
+    .map((f) => pathGen(f))
+    .filter((p): p is string => !!p)
+    .join('');
   if (!d) return null;
-  const id = normId(f.id);
+  const id = normId(features[0].id);
   const meta = id ? countryById.get(id) : undefined;
-  const centroid = projection(labelAnchor(f)) ?? [0, 0];
+  const centroid = projection(labelAnchor(features)) ?? [0, 0];
   return {
     id,
-    rawName: f.properties?.name ?? '',
+    rawName: features[0].properties?.name ?? '',
     d,
     cx: centroid[0],
     cy: centroid[1],
@@ -80,7 +99,26 @@ function toShape(f: Feature<Geometry, { name?: string }>): MapShape | null {
   };
 }
 
-export const shapes: MapShape[] = collection.features
+// Group features by normalised id so each country is one shape. Features with an
+// empty id (disputed areas) are never merged together — each stays its own shape.
+const groups: Feature<Geometry, { name?: string }>[][] = [];
+const byId = new Map<string, Feature<Geometry, { name?: string }>[]>();
+for (const f of collection.features) {
+  const id = normId(f.id);
+  if (!id) {
+    groups.push([f]);
+    continue;
+  }
+  const arr = byId.get(id);
+  if (arr) arr.push(f);
+  else {
+    const created = [f];
+    byId.set(id, created);
+    groups.push(created);
+  }
+}
+
+export const shapes: MapShape[] = groups
   .map(toShape)
   .filter((s): s is MapShape => s !== null);
 
