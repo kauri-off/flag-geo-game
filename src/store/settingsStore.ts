@@ -14,6 +14,12 @@ export interface DifficultyFilter {
   continents: string[];
   /** Country-size bucket, or 'all'. */
   size: SizeBucket | 'all';
+  /**
+   * Recognition scope: 'un' = UN member states only, 'all' = also include
+   * dependencies & territories. Optional/absent is treated as 'all' (keeps
+   * older persisted settings and challenge configs valid).
+   */
+  scope?: 'un' | 'all';
 }
 
 export interface SettingsState {
@@ -22,8 +28,6 @@ export interface SettingsState {
   showLabels: boolean;
   confirmMode: ConfirmMode;
   difficulty: DifficultyFilter;
-  /** On-screen map width as a percentage of the available area (40–100). */
-  mapSize: number;
   soundOn: boolean;
   /** Sound effect volume, 0–100. */
   volume: number;
@@ -31,6 +35,11 @@ export interface SettingsState {
   showPickedFlag: boolean;
   /** Seconds allowed per round before it auto-reveals as a timeout. 0 = no limit. */
   answerSeconds: number;
+  /**
+   * Clicking the ocean selects the nearest country whose centroid is within this
+   * radius (base map/viewBox units). 0 = off (ocean clicks do nothing).
+   */
+  oceanSnapRadius: number;
 
   setMode: (mode: GameModeId) => void;
   setLanguage: (lang: Language) => void;
@@ -38,11 +47,12 @@ export interface SettingsState {
   setConfirmMode: (m: ConfirmMode) => void;
   toggleContinent: (continent: string) => void;
   setSize: (size: SizeBucket | 'all') => void;
-  setMapSize: (pct: number) => void;
+  setScope: (scope: 'un' | 'all') => void;
   setSoundOn: (v: boolean) => void;
   setVolume: (v: number) => void;
   setShowPickedFlag: (v: boolean) => void;
   setAnswerSeconds: (s: number) => void;
+  setOceanSnapRadius: (r: number) => void;
 }
 
 export const useSettings = create<SettingsState>()(
@@ -52,12 +62,12 @@ export const useSettings = create<SettingsState>()(
       language: 'en',
       showLabels: true,
       confirmMode: 'click',
-      difficulty: { continents: [], size: 'all' },
-      mapSize: 100,
+      difficulty: { continents: [], size: 'all', scope: 'all' },
       soundOn: true,
       volume: 80,
       showPickedFlag: false,
       answerSeconds: 10,
+      oceanSnapRadius: 25,
 
       setMode: (mode) => set({ mode }),
       setLanguage: (language) => set({ language }),
@@ -77,13 +87,15 @@ export const useSettings = create<SettingsState>()(
         }),
       setSize: (size) =>
         set((s) => ({ difficulty: { ...s.difficulty, size } })),
-      setMapSize: (mapSize) =>
-        set({ mapSize: Math.min(100, Math.max(40, Math.round(mapSize))) }),
+      setScope: (scope) =>
+        set((s) => ({ difficulty: { ...s.difficulty, scope } })),
       setSoundOn: (soundOn) => set({ soundOn }),
       setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, Math.round(volume))) }),
       setShowPickedFlag: (showPickedFlag) => set({ showPickedFlag }),
       setAnswerSeconds: (answerSeconds) =>
         set({ answerSeconds: Math.min(60, Math.max(0, Math.round(answerSeconds))) }),
+      setOceanSnapRadius: (oceanSnapRadius) =>
+        set({ oceanSnapRadius: Math.min(60, Math.max(0, Math.round(oceanSnapRadius))) }),
     }),
     { name: 'flag-geo-settings' },
   ),

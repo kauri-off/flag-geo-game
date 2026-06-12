@@ -26,6 +26,9 @@ const labelCandidates = shapes
   .filter((s) => s.guessable)
   .sort((a, b) => b.area - a.area);
 
+// All guessable shapes, scanned on an ocean click to find the nearest country.
+const guessableShapes = shapes.filter((s) => s.guessable);
+
 export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [tf, setTf] = useState<Transform>({ k: 1, x: 0, y: 0 });
@@ -38,7 +41,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
 
   const showLabels = useSettings((s) => s.showLabels);
   const language = useSettings((s) => s.language);
-  const mapSize = useSettings((s) => s.mapSize);
+  const oceanSnapRadius = useSettings((s) => s.oceanSnapRadius);
 
   // --- pan + click ---
   // We capture the country under the cursor at pointer-DOWN time (before
@@ -109,9 +112,35 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
-    // A tap/click (no drag) on a guessable country selects it.
-    if (!d.moved && d.downId && d.guessable && status === "guessing") {
+    if (d.moved || status !== "guessing") return;
+    // A tap/click (no drag) on a guessable country selects it directly.
+    if (d.downId && d.guessable) {
       select(d.downId);
+      return;
+    }
+    // Otherwise the tap landed on the ocean (or non-guessable land). When enabled,
+    // snap to the nearest guessable country whose centroid is within the radius.
+    if (oceanSnapRadius > 0) {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const vx = ((e.clientX - rect.left) / rect.width) * MAP_WIDTH;
+      const vy = ((e.clientY - rect.top) / rect.height) * MAP_HEIGHT;
+      // Undo the <g> translate+scale to get base viewBox coords (zoom-independent).
+      const bx = (vx - tf.x) / tf.k;
+      const by = (vy - tf.y) / tf.k;
+      let best: string | null = null;
+      let bestD2 = oceanSnapRadius * oceanSnapRadius; // squared radius = the limit
+      for (const sh of guessableShapes) {
+        const dx = sh.cx - bx;
+        const dy = sh.cy - by;
+        const dist2 = dx * dx + dy * dy;
+        if (dist2 < bestD2) {
+          bestD2 = dist2;
+          best = sh.id;
+        }
+      }
+      if (best) select(best);
     }
   };
 
@@ -199,7 +228,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const labelSize = LABEL_PX / tf.k;
 
   return (
-    <div className="map-wrap" style={{ width: `${mapSize}%` }}>
+    <div className="map-wrap">
       {overlay}
       <svg
         ref={svgRef}
@@ -241,18 +270,26 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
               <title>{countryName(s.id, language, s.rawName)}</title>
             </path>
           ))}
-          {visibleLabels.map((l) => (
-            <text
-              key={`l${l.id}`}
-              x={l.cx}
-              y={l.cy}
-              fontSize={labelSize}
-              strokeWidth={labelSize * 0.08}
-              className="country-label"
-            >
-              {l.name}
-            </text>
-          ))}
+          {visibleLabels.map((l) => {
+            // Tint the label to match its country once that country is colored
+            // (selection/correct/wrong); otherwise keep the default dark text.
+            const fill = fillFor(l.id);
+            return (
+              <text
+                key={`l${l.id}`}
+                x={l.cx}
+                y={l.cy}
+                fontSize={labelSize}
+                strokeWidth={labelSize * 0.08}
+                className="country-label"
+                // Inline style (not the `fill` attribute) so it overrides the
+                // .country-label CSS rule, which wins over presentation attributes.
+                style={fill === "#b9c5d0" ? undefined : { fill }}
+              >
+                {l.name}
+              </text>
+            );
+          })}
         </g>
       </svg>
 

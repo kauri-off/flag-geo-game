@@ -13,6 +13,8 @@ export function buildPool(filter: DifficultyFilter): CountryMeta[] {
     if (filter.size !== 'all' && sizeBucket(c.area) !== filter.size) {
       return false;
     }
+    // 'un' restricts to UN members; undefined/'all' includes territories.
+    if (filter.scope === 'un' && !c.unMember) return false;
     return true;
   });
 }

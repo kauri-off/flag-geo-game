@@ -14,6 +14,8 @@ export interface CountryMeta {
   continent: string;
   /** Sub-region, e.g. "Western Europe". */
   subregion: string;
+  /** True for UN member states; drives the "Countries" scope filter. */
+  unMember: boolean;
 }
 
 export const countries: CountryMeta[] = raw as CountryMeta[];

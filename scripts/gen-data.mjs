@@ -37,6 +37,7 @@ for (const c of countries) {
     area: c.area, // km^2
     continent: c.region || 'Other',
     subregion: c.subregion || '',
+    unMember: !!c.unMember, // UN member state (drives the "Countries" scope filter)
   });
   en[id] = c.name.common;
   ru[id] = (c.translations && c.translations.rus && c.translations.rus.common) || c.name.common;
@@ -56,8 +57,11 @@ write('src/i18n/locales/en.json', en);
 write('src/i18n/locales/ru.json', ru);
 
 // Copy the world map TopoJSON into the repo so the app is self-contained.
-const topoSrc = require.resolve('world-atlas/countries-110m.json');
+// 50m resolution: ~241 features incl. all UN members + many small island states
+// that the coarser 110m map omits entirely. Destination keeps the existing
+// filename so src/map/world.ts's import is unchanged.
+const topoSrc = require.resolve('world-atlas/countries-50m.json');
 const topoDst = resolve(root, 'src/assets/countries-110m.json');
 mkdirSync(dirname(topoDst), { recursive: true });
 copyFileSync(topoSrc, topoDst);
-console.log('copied countries-110m.json');
+console.log('copied countries-50m.json -> src/assets/countries-110m.json');

@@ -37,11 +37,14 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  background: var(--panel);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  z-index: 20;
 }
 .brand { font-weight: 700; font-size: 1.15rem; }
 .nav { display: flex; gap: 6px; }
@@ -62,11 +65,15 @@ body {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 16px;
+  /* Top padding clears the fixed floating top bar (panel screens scroll below
+     it; on map screens the fixed map sits behind the translucent bar). */
+  padding: 72px 16px 16px;
 }
 
 /* ---- game ---- */
-.game { display: flex; flex-direction: column; gap: 14px; }
+/* The play screens render the map full-window (fixed) with every piece of UI as
+   a fixed overlay, so this wrapper imposes no layout of its own. */
+.game { display: block; }
 
 .prompt { text-align: center; }
 .prompt-text { color: var(--muted); margin-bottom: 8px; }
@@ -112,14 +119,21 @@ body {
 }
 
 /* challenge HUD + results */
+/* During a run the HUD floats top-right over the map, below the top bar. */
 .challenge-hud {
+  position: fixed;
+  top: 72px;
+  right: 10px;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 10px 14px;
-  background: var(--panel);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(4px);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 .hud-item { display: flex; flex-direction: column; }
 .hud-key {
@@ -152,21 +166,21 @@ body {
   font-size: 0.9rem;
 }
 
-.map-area { position: relative; }
+.map-area { position: static; }
 
-/* Flag prompt + timer floating over the top-left corner of the map. The
-   container ignores pointer events so panning/zooming the map underneath the
-   overlay still works. */
+/* Flag prompt + timer floating over the top-left corner of the map, below the
+   floating top bar. The container ignores pointer events so panning/zooming the
+   map underneath the overlay still works. */
 .map-overlay {
-  position: absolute;
+  position: fixed;
   left: 10px;
-  top: 10px;
+  top: 72px;
   z-index: 5;
   /* Width is sized to hold two flags (1.333em wide each at --fi-size) plus the
      gap and padding, so the prompt text wraps instead of stretching the panel.
      Capped to a slice of the map for safety at large flag sizes. */
-  --fi-size: 3rem;
-  width: min(90%, calc(var(--fi-size) * 1.333 * 2 + 10px + 26px));
+  --fi-size: 6rem;
+  width: min(90vw, calc(var(--fi-size) * 1.333 * 2 + 10px + 26px));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -188,24 +202,26 @@ body {
 .map-overlay .timer { width: 100%; }
 
 @media (max-width: 560px) {
-  .map-overlay { min-width: 0; padding: 8px; }
+  /* Shrink the flag prompt so it doesn't collide with the top-right HUD. */
+  .map-overlay { min-width: 0; padding: 8px; --fi-size: 3.5rem; }
   .map-overlay .prompt-text { font-size: 0.72rem; }
 }
 
+/* The map fills the whole window as a fixed backdrop; all game UI floats over it
+   as fixed overlays. The ocean-colored background fills any letterbox area left
+   by the map's aspect ratio. */
 .map-wrap {
-  position: relative;
-  margin: 0 auto;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   background: #a9d6e5;
-  border: 1px solid var(--border);
-  border-radius: 12px;
   overflow: hidden;
   touch-action: none;
 }
 .world-map {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: 76vh;
+  height: 100%;
   cursor: grab;
 }
 .world-map:active { cursor: grabbing; }
@@ -250,10 +266,11 @@ body {
 
 /* feedback overlay */
 .feedback {
-  position: absolute;
+  position: fixed;
   left: 50%;
-  top: 12px;
+  top: 72px;
   transform: translateX(-50%);
+  z-index: 6;
   padding: 10px 18px;
   border-radius: 10px;
   text-align: center;
@@ -274,6 +291,26 @@ body {
   gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
+}
+/* In-game confirm/next: float at the bottom-center over the map. The container
+   lets pointer events through (so the map stays pannable around it) while the
+   buttons/hint stay interactive. */
+.controls.game-controls {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: max-content;
+  max-width: calc(100vw - 20px);
+  pointer-events: none;
+}
+.controls.game-controls > * { pointer-events: auto; }
+.controls.game-controls .hint {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(4px);
+  border-radius: 8px;
+  padding: 4px 10px;
 }
 .btn {
   border: 1px solid var(--border);
@@ -376,4 +413,7 @@ body {
   .flag-big { font-size: 4rem; }
   .brand { font-size: 1rem; }
   .nav-btn { padding: 7px 10px; }
+  /* Compact the floating challenge HUD so it clears the flag prompt. */
+  .challenge-hud { gap: 10px; padding: 8px 10px; }
+  .challenge-hud .hud-val { font-size: 1.05rem; }
 }

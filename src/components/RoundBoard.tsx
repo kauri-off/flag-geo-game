@@ -1,7 +1,7 @@
 // The interactive round: prompt, countdown, map, feedback and controls, plus the
 // keyboard handling and the answer-timeout. Shared by free practice (GameScreen)
 // and the scored Challenge run, so both behave identically.
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect } from 'react';
 import { WorldMap } from './WorldMap';
 import { FlagPrompt } from './FlagPrompt';
 import { GameControls } from './GameControls';
@@ -23,11 +23,6 @@ export function RoundBoard() {
 
   // A challenge sets its own per-answer limit; free practice uses the setting.
   const answerSeconds = challenge ? challenge.config.timeLimitSec : practiceSeconds;
-
-  // Flag font-size: drives both the flags and the overlay width (sized to fit two
-  // flags) so the prompt text wraps instead of stretching the panel. Fixed at 6rem
-  // (what the old "flag size" setting produced at 200%).
-  const overlayStyle = { '--fi-size': '6rem' } as CSSProperties;
 
   // Spacebar: confirm during a guess (spacebar mode), advance after reveal.
   useEffect(() => {
@@ -81,7 +76,7 @@ export function RoundBoard() {
         <WorldMap
           overlay={
             // Flag prompt + countdown float over the top-left corner of the map.
-            <div className="map-overlay" style={overlayStyle}>
+            <div className="map-overlay">
               <FlagPrompt />
               <Timer seconds={answerSeconds} />
             </div>

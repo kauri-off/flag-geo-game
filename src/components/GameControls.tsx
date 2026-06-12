@@ -17,7 +17,7 @@ export function GameControls() {
     // In a challenge the Next button lives in the HUD, next to Quit.
     if (challenge) return null;
     return (
-      <div className="controls">
+      <div className="controls game-controls">
         <button className="btn primary big" onClick={next}>
           {t('next', language)}
         </button>
@@ -29,7 +29,7 @@ export function GameControls() {
   if (status === 'guessing') {
     if (confirmMode === 'spacebar') {
       return (
-        <div className="controls">
+        <div className="controls game-controls">
           <button
             className="btn primary big"
             onClick={confirm}
@@ -49,7 +49,7 @@ export function GameControls() {
     // Click-to-confirm: only the prompt, and not during a challenge.
     if (challenge) return null;
     return (
-      <div className="controls">
+      <div className="controls game-controls">
         <span className="hint">{t('selectACountry', language)}</span>
       </div>
     );

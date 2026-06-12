@@ -81,7 +81,7 @@ export const useGame = create<GameState>((set, get) => ({
       : useSettings.getState().difficulty;
     const pool = buildPool(difficulty);
     // Key the shuffle bag to the active filters so it refills when they change.
-    const key = `${difficulty.size}|${[...difficulty.continents].sort().join(',')}`;
+    const key = `${difficulty.scope ?? 'all'}|${difficulty.size}|${[...difficulty.continents].sort().join(',')}`;
     const target = nextFromBag(pool, key, get().targetId ?? undefined);
     if (!target) {
       set({ status: 'empty', targetId: null, targetAlpha2: null, selectedId: null });
