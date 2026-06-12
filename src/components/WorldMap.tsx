@@ -7,6 +7,7 @@ import { countryName } from "../i18n";
 import { sameFlag } from "../game/flagTwins";
 import { useGame } from "../store/gameStore";
 import { useSettings } from "../store/settingsStore";
+import { useUi } from "../store/uiStore";
 import { t } from "../i18n";
 
 interface Transform {
@@ -29,15 +30,29 @@ const labelCandidates = shapes
 // All guessable shapes, scanned on an ocean click to find the nearest country.
 const guessableShapes = shapes.filter((s) => s.guessable);
 
+// Shape lookup by numeric id, for the reveal fit-zoom.
+const shapeById = new Map(shapes.filter((s) => s.id).map((s) => [s.id, s]));
+
+const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
+const easeInOut = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
 export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [tf, setTf] = useState<Transform>({ k: 1, x: 0, y: 0 });
+  // Live mirror of `tf` so event/effect callbacks read the latest transform
+  // without re-subscribing on every pan frame.
+  const tfRef = useRef(tf);
+  tfRef.current = tf;
+  // requestAnimationFrame id of an in-flight fly-to, or null when idle.
+  const animRef = useRef<number | null>(null);
 
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
   const selectedId = useGame((s) => s.selectedId);
   const wrongPicks = useGame((s) => s.wrongPicks);
   const select = useGame((s) => s.select);
+  const mapZoomNonce = useUi((s) => s.mapZoomNonce);
 
   const showLabels = useSettings((s) => s.showLabels);
   const language = useSettings((s) => s.language);
@@ -72,6 +87,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   });
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    cancelAnim();
     const el = e.target as Element;
     drag.current = {
       active: true,
@@ -164,24 +180,112 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     [],
   );
 
+  // --- animated fly-to (Google-Maps style ease into a target transform) ---
+  const cancelAnim = useCallback(() => {
+    if (animRef.current !== null) {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    }
+  }, []);
+
+  const flyTo = useCallback(
+    (target: Transform) => {
+      cancelAnim();
+      // Start from the live transform (tfRef mirrors it, so back-to-back flights
+      // chain from wherever the previous one was interrupted).
+      const from = tfRef.current;
+      // Duration scales with the work the eye does: how far the destination's
+      // focal point has to travel across the screen, plus how many zoom octaves
+      // the scale changes. Small nudges stay snappy; cross-map / deep-zoom
+      // flights take longer — the Google-Maps feel.
+      const wx = (MAP_WIDTH / 2 - target.x) / target.k;
+      const wy = (MAP_HEIGHT / 2 - target.y) / target.k;
+      const travel = Math.hypot(
+        from.x + wx * from.k - MAP_WIDTH / 2,
+        from.y + wy * from.k - MAP_HEIGHT / 2,
+      );
+      const zoomMag = Math.abs(Math.log2(target.k / from.k));
+      const ms = Math.min(1400, Math.max(300, 250 + travel * 0.6 + zoomMag * 90));
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / ms);
+        const e = easeInOut(t);
+        setTf({
+          k: from.k + (target.k - from.k) * e,
+          x: from.x + (target.x - from.x) * e,
+          y: from.y + (target.y - from.y) * e,
+        });
+        if (t < 1) animRef.current = requestAnimationFrame(step);
+        else animRef.current = null;
+      };
+      animRef.current = requestAnimationFrame(step);
+    },
+    [cancelAnim],
+  );
+
+  // Compute the transform that fits a shape's bbox into ~70% of the viewBox,
+  // centered. `off` is the horizontal world-copy offset (a multiple of
+  // MAP_WIDTH) of the copy to fly into.
+  const fitTransform = useCallback(
+    (bbox: [number, number, number, number], off: number): Transform => {
+      const [x0, y0, x1, y1] = bbox;
+      const bw = Math.max(x1 - x0, 1e-3);
+      const bh = Math.max(y1 - y0, 1e-3);
+      const k = clampK(
+        Math.min((MAP_WIDTH * 0.7) / bw, (MAP_HEIGHT * 0.7) / bh),
+      );
+      const cxb = (x0 + x1) / 2 + off;
+      const cyb = (y0 + y1) / 2;
+      return { k, x: MAP_WIDTH / 2 - cxb * k, y: MAP_HEIGHT / 2 - cyb * k };
+    },
+    [],
+  );
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      cancelAnim();
       zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.2 : 1 / 1.2);
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [zoomAt]);
+  }, [zoomAt, cancelAnim]);
+
+  // Fly-zoom into the current target country when the flag prompt asks for it
+  // (the bumped nonce). The ref is seeded with the mount-time nonce so only a
+  // genuine bump *while mounted* fires — remounting (e.g. switching tabs and
+  // back) must not replay a past request and zoom on a non-revealed round.
+  const handledZoomNonce = useRef(mapZoomNonce);
+  useEffect(() => {
+    if (mapZoomNonce === handledZoomNonce.current) return;
+    handledZoomNonce.current = mapZoomNonce;
+    const shape = targetId ? shapeById.get(targetId) : undefined;
+    if (!shape) return;
+    // Fly into whichever horizontal world-copy is already nearest on screen, so
+    // the infinite scroll wrap doesn't cause a big sideways jump.
+    const cur = tfRef.current;
+    let best = fitTransform(shape.bbox, 0);
+    for (const off of [-MAP_WIDTH, MAP_WIDTH]) {
+      const cand = fitTransform(shape.bbox, off);
+      if (Math.abs(cand.x - cur.x) < Math.abs(best.x - cur.x)) best = cand;
+    }
+    flyTo(best);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapZoomNonce]);
 
   const zoomButton = (factor: number) => {
+    cancelAnim();
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
     zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
   };
-  const reset = () => setTf({ k: 1, x: 0, y: 0 });
+  const reset = () => {
+    cancelAnim();
+    setTf({ k: 1, x: 0, y: 0 });
+  };
 
   const fillFor = useMemo(
     () =>

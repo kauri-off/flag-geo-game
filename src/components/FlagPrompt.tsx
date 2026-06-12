@@ -3,6 +3,7 @@
 import { Flag } from './Flag';
 import { useGame } from '../store/gameStore';
 import { useSettings } from '../store/settingsStore';
+import { useUi } from '../store/uiStore';
 import { countryById } from '../data/countries';
 import { GAME_MODES } from '../game/modes';
 import { t } from '../i18n';
@@ -15,7 +16,12 @@ export function FlagPrompt() {
   const language = useSettings((s) => s.language);
   const modeId = useSettings((s) => s.mode);
   const showPickedFlag = useSettings((s) => s.showPickedFlag);
+  const requestMapZoom = useUi((s) => s.requestMapZoom);
   const mode = GAME_MODES[modeId];
+
+  // After a wrong guess the question flag becomes a button: an outline invites a
+  // click that flies the map in to the country it belongs to (handled by WorldMap).
+  const wrong = status === 'revealed' && lastCorrect === false;
 
   // Flag size comes from the --fi-size variable set on the overlay (see
   // RoundBoard); falls back to the 3rem base if rendered outside one.
@@ -35,7 +41,23 @@ export function FlagPrompt() {
           {/* Empty left cell keeps the question flag centered whether or not
               the picked flag is shown on the right. */}
           <span aria-hidden />
-          <Flag alpha2={targetAlpha2} className="flag-big" style={flagStyle} />
+          {wrong ? (
+            <button
+              type="button"
+              className="flag-zoom-btn"
+              onClick={requestMapZoom}
+              title={t('zoomToCountry', language)}
+              aria-label={t('zoomToCountry', language)}
+            >
+              <Flag
+                alpha2={targetAlpha2}
+                className="flag-big flag-zoomable"
+                style={flagStyle}
+              />
+            </button>
+          ) : (
+            <Flag alpha2={targetAlpha2} className="flag-big" style={flagStyle} />
+          )}
           {showPicked && (
             <Flag
               alpha2={pickedMeta.alpha2}

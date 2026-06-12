@@ -91,6 +91,40 @@ body {
   outline: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* After a wrong guess the question flag is wrapped in this button so it can be
+   clicked to fly the map into the country. The button is a bare frame around the
+   flag; the flag keeps the grid's center cell. */
+.flag-zoom-btn {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  /* The overlay is pointer-events:none so map clicks pass through; opt the
+     button back in so it can be clicked. */
+  pointer-events: auto;
+}
+/* An accent outline that pulses to invite a click, brightening on hover/focus.
+   The .flag-big already paints a subtle outline; this overrides it when zoomable. */
+.flag-big.flag-zoomable {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  transition: outline-color 0.12s ease, outline-width 0.12s ease,
+    box-shadow 0.12s ease;
+  animation: flag-zoom-pulse 1.6s ease-in-out infinite;
+}
+.flag-zoom-btn:hover .flag-big.flag-zoomable,
+.flag-zoom-btn:focus-visible .flag-big.flag-zoomable {
+  outline-color: #ffffff;
+  outline-width: 4px;
+  box-shadow: 0 4px 22px rgba(79, 134, 198, 0.7);
+  animation: none;
+}
+@keyframes flag-zoom-pulse {
+  0%, 100% { outline-color: var(--accent); }
+  50% { outline-color: #9ec5ef; }
+}
+
 /* answer countdown */
 .timer {
   position: relative;

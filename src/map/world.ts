@@ -26,6 +26,8 @@ export interface MapShape {
   area: number;
   /** True when this shape can be a quiz target / scored guess. */
   guessable: boolean;
+  /** Projected bounding box [x0, y0, x1, y1] in base viewBox coords. */
+  bbox: [number, number, number, number];
 }
 
 const normId = (id: unknown): string =>
@@ -88,6 +90,19 @@ function toShape(
   const id = normId(features[0].id);
   const meta = id ? countryById.get(id) : undefined;
   const centroid = projection(labelAnchor(features)) ?? [0, 0];
+  // Union the per-feature projected bounds so the box covers the whole country
+  // (merged features included). Used by the renderer to fit-zoom on reveal.
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const f of features) {
+    const [[bx0, by0], [bx1, by1]] = pathGen.bounds(f);
+    if (bx0 < x0) x0 = bx0;
+    if (by0 < y0) y0 = by0;
+    if (bx1 > x1) x1 = bx1;
+    if (by1 > y1) y1 = by1;
+  }
   return {
     id,
     rawName: features[0].properties?.name ?? '',
@@ -96,6 +111,7 @@ function toShape(
     cy: centroid[1],
     area: meta?.area ?? 0,
     guessable: !!meta,
+    bbox: [x0, y0, x1, y1],
   };
 }
 
