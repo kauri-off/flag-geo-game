@@ -5,9 +5,13 @@
 // Keyed by numeric ISO 3166-1 codes (matching CountryMeta.id):
 //   642 Romania   / 148 Chad        — blue-yellow-red vertical tricolor
 //   360 Indonesia / 492 Monaco      — red-white horizontal bicolor
+//   250 France + overseas territories that fly the plain blue-white-red
+//       tricolor: 652 St Barthélemy, 663 St Martin, 312 Guadeloupe,
+//       638 Réunion, 175 Mayotte, 666 St Pierre & Miquelon, 876 Wallis & Futuna
 const TWIN_GROUPS: string[][] = [
   ['642', '148'],
   ['360', '492'],
+  ['250', '652', '663', '312', '638', '175', '666', '876'],
 ];
 
 // id -> set of acceptable ids (including itself).
