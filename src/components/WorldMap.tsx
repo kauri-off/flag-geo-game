@@ -16,7 +16,7 @@ interface Transform {
 }
 
 const MIN_K = 1;
-const MAX_K = 14;
+const MAX_K = 40;
 const LABEL_PX = 11; // on-screen label height in viewBox units
 
 // Label candidates, largest country first. Greedy declutter keeps the biggest
