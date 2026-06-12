@@ -421,15 +421,16 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     handledZoomNonce.current = mapZoomNonce;
     const shape = targetId ? shapeById.get(targetId) : undefined;
     if (!shape) return;
-    // Fly into whichever horizontal world-copy is already nearest on screen, so
-    // the infinite scroll wrap doesn't cause a big sideways jump.
+    // Fly into whichever horizontal world-copy is nearest on screen, so the
+    // infinite-scroll wrap makes the arc cross the seam the short way instead of
+    // sweeping back across every tiled copy. The world repeats every MAP_WIDTH,
+    // so snap the target's centroid to the copy closest to the current view
+    // center — works no matter how many copies you've scrolled through.
     const cur = tfRef.current;
-    let best = fitTransform(shape.bbox, 0);
-    for (const off of [-MAP_WIDTH, MAP_WIDTH]) {
-      const cand = fitTransform(shape.bbox, off);
-      if (Math.abs(cand.x - cur.x) < Math.abs(best.x - cur.x)) best = cand;
-    }
-    flyArc(best);
+    const viewCx = (MAP_WIDTH / 2 - cur.x) / cur.k; // current view center, world-x
+    const targetCx = (shape.bbox[0] + shape.bbox[2]) / 2; // canonical centroid
+    const off = Math.round((viewCx - targetCx) / MAP_WIDTH) * MAP_WIDTH;
+    flyArc(fitTransform(shape.bbox, off));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapZoomNonce]);
 
