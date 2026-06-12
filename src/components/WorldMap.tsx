@@ -127,7 +127,10 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       const vx = ((e.clientX - rect.left) / rect.width) * MAP_WIDTH;
       const vy = ((e.clientY - rect.top) / rect.height) * MAP_HEIGHT;
       // Undo the <g> translate+scale to get base viewBox coords (zoom-independent).
-      const bx = (vx - tf.x) / tf.k;
+      // The world tiles horizontally for infinite scroll, so a click can land on
+      // any wrapped copy; wrap bx back into [0, MAP_WIDTH) before the scan.
+      let bx = (vx - tf.x) / tf.k;
+      bx = ((bx % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
       const by = (vy - tf.y) / tf.k;
       let best: string | null = null;
       let bestD2 = oceanSnapRadius * oceanSnapRadius; // squared radius = the limit
@@ -196,34 +199,86 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     [status, targetId, selectedId, wrongPicks],
   );
 
+  // The world tiles horizontally for infinite left-right scroll. Compute the set
+  // of copy offsets (in base viewBox coords, multiples of MAP_WIDTH) whose copy
+  // intersects the visible viewBox [0, MAP_WIDTH]. At k=1 this is 1-2 copies;
+  // zoomed in it is exactly 1 — never more than ~3.
+  const copies = useMemo(() => {
+    const worldPx = MAP_WIDTH * tf.k; // world width in viewBox units at this zoom
+    const out: number[] = [];
+    let n = Math.floor(-tf.x / worldPx) - 1;
+    while (tf.x + n * worldPx < MAP_WIDTH) {
+      if (tf.x + (n + 1) * worldPx > 0) out.push(n * MAP_WIDTH);
+      n++;
+    }
+    return out;
+  }, [tf]);
+
+  // The country paths only depend on the fill state, not on pan/zoom. Build them
+  // once per fill-state change so panning (which only mutates the wrapping <g>
+  // transforms) never forces React to re-render the ~177 paths. The same element
+  // array is rendered inside every visible copy.
+  const countryPaths = useMemo(
+    () =>
+      shapes.map((s, i) => (
+        <path
+          key={s.id || `x${i}`}
+          d={s.d}
+          data-id={s.id}
+          data-guessable={s.guessable ? "1" : "0"}
+          fill={fillFor(s.id)}
+          stroke="#ffffff"
+          strokeWidth={0.5}
+          vectorEffect="non-scaling-stroke"
+          className={[
+            "country",
+            s.guessable && status === "guessing" ? "guessable" : "",
+            s.id && s.id === selectedId ? "selected" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <title>{countryName(s.id, language, s.rawName)}</title>
+        </path>
+      )),
+    [fillFor, status, selectedId, language],
+  );
+
   // Decide which labels to draw for the current view: project each centroid to
-  // viewBox space, skip off-screen ones, then greedily reject overlaps.
+  // viewBox space across every visible copy, skip off-screen ones, then greedily
+  // reject overlaps. Each kept label is tagged with the copy offset `off` it
+  // belongs to so it can be rendered inside the matching copy <g> (where its
+  // local x is just s.cx).
   const visibleLabels = useMemo(() => {
     if (!showLabels) return [];
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    const out: { id: string; cx: number; cy: number; name: string }[] = [];
+    const out: { id: string; cx: number; cy: number; name: string; off: number }[] =
+      [];
     for (const s of labelCandidates) {
-      const sx = tf.x + s.cx * tf.k;
-      const sy = tf.y + s.cy * tf.k;
-      if (sx < 0 || sx > MAP_WIDTH || sy < 0 || sy > MAP_HEIGHT) continue;
       const name = countryName(s.id, language, s.rawName);
       const halfW = name.length * LABEL_PX * 0.27 + 2;
       const halfH = LABEL_PX * 0.62;
-      const box = {
-        x0: sx - halfW,
-        y0: sy - halfH,
-        x1: sx + halfW,
-        y1: sy + halfH,
-      };
-      const clash = placed.some(
-        (p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0,
-      );
-      if (clash) continue;
-      placed.push(box);
-      out.push({ id: s.id, cx: s.cx, cy: s.cy, name });
+      for (const off of copies) {
+        const sx = tf.x + (s.cx + off) * tf.k;
+        const sy = tf.y + s.cy * tf.k;
+        if (sx < 0 || sx > MAP_WIDTH || sy < 0 || sy > MAP_HEIGHT) continue;
+        const box = {
+          x0: sx - halfW,
+          y0: sy - halfH,
+          x1: sx + halfW,
+          y1: sy + halfH,
+        };
+        const clash = placed.some(
+          (p) =>
+            box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0,
+        );
+        if (clash) continue;
+        placed.push(box);
+        out.push({ id: s.id, cx: s.cx, cy: s.cy, name, off });
+      }
     }
     return out;
-  }, [showLabels, language, tf]);
+  }, [showLabels, language, tf, copies]);
 
   const labelSize = LABEL_PX / tf.k;
 
@@ -248,55 +303,45 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
           height={MAP_HEIGHT}
           fill="#a9d6e5"
         />
+        {/* Outer <g> carries the live pan/zoom; each inner <g> is one horizontal
+            world copy, offset by a whole MAP_WIDTH in base coords (static unless
+            the visible copy set changes), so panning only mutates this one
+            transform string. */}
         <g transform={`translate(${tf.x} ${tf.y}) scale(${tf.k})`}>
-          {shapes.map((s, i) => (
-            <path
-              key={s.id || `x${i}`}
-              d={s.d}
-              data-id={s.id}
-              data-guessable={s.guessable ? "1" : "0"}
-              fill={fillFor(s.id)}
-              stroke="#ffffff"
-              strokeWidth={0.5}
-              vectorEffect="non-scaling-stroke"
-              className={[
-                "country",
-                s.guessable && status === "guessing" ? "guessable" : "",
-                s.id && s.id === selectedId ? "selected" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <title>{countryName(s.id, language, s.rawName)}</title>
-            </path>
+          {copies.map((off) => (
+            <g key={off} transform={`translate(${off} 0)`}>
+              {countryPaths}
+              {visibleLabels
+                .filter((l) => l.off === off)
+                .map((l) => {
+                  // Tint the label to match its country once that country is
+                  // colored (selection/correct/wrong); else keep dark text.
+                  const fill = fillFor(l.id);
+                  return (
+                    <text
+                      key={`l${l.id}`}
+                      x={l.cx}
+                      y={l.cy}
+                      fontSize={labelSize}
+                      strokeWidth={labelSize * 0.08}
+                      className="country-label"
+                      // Inline style (not the `fill` attribute) so it overrides the
+                      // .country-label CSS rule, which wins over presentation attributes.
+                      // Once the country is colored, use white text with a black halo:
+                      // tinting the text to match the fill makes it the same hue as the
+                      // country and hard to read, so we go high-contrast instead.
+                      style={
+                        fill === "#b9c5d0"
+                          ? undefined
+                          : { fill: "#ffffff", stroke: "#000000" }
+                      }
+                    >
+                      {l.name}
+                    </text>
+                  );
+                })}
+            </g>
           ))}
-          {visibleLabels.map((l) => {
-            // Tint the label to match its country once that country is colored
-            // (selection/correct/wrong); otherwise keep the default dark text.
-            const fill = fillFor(l.id);
-            return (
-              <text
-                key={`l${l.id}`}
-                x={l.cx}
-                y={l.cy}
-                fontSize={labelSize}
-                strokeWidth={labelSize * 0.08}
-                className="country-label"
-                // Inline style (not the `fill` attribute) so it overrides the
-                // .country-label CSS rule, which wins over presentation attributes.
-                // Once the country is colored, use white text with a black halo:
-                // tinting the text to match the fill makes it the same hue as the
-                // country and hard to read, so we go high-contrast instead.
-                style={
-                  fill === "#b9c5d0"
-                    ? undefined
-                    : { fill: "#ffffff", stroke: "#000000" }
-                }
-              >
-                {l.name}
-              </text>
-            );
-          })}
         </g>
       </svg>
 
