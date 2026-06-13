@@ -257,6 +257,9 @@ body {
   width: 100%;
   height: 100%;
   cursor: grab;
+  /* Promote to its own GPU layer so the live drag (a CSS translate set
+     imperatively in JS) composites without repainting the ~500 vector paths. */
+  will-change: transform;
 }
 .world-map:active { cursor: grabbing; }
 

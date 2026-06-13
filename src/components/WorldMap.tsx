@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { shapes, MAP_WIDTH, MAP_HEIGHT } from "../map/world";
 import { countryName } from "../i18n";
 import { sameFlag } from "../game/flagTwins";
@@ -41,6 +42,24 @@ const guessableShapes = shapes.filter((s) => s.guessable);
 const shapeById = new Map(shapes.filter((s) => s.id).map((s) => [s.id, s]));
 
 const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
+
+// The visible horizontal world-copy offsets (multiples of MAP_WIDTH) whose copy
+// intersects the viewBox [0, MAP_WIDTH] at this transform. At k=1 this is 1-2
+// copies; zoomed in it is exactly 1 — never more than ~3. Pure so the animator
+// and drag handlers can test whether a pan/zoom crossed into a new copy (and
+// therefore needs a React re-render to refill the tiling) without subscribing.
+function computeCopies(tf: Transform): number[] {
+  const worldPx = MAP_WIDTH * tf.k; // world width in viewBox units at this zoom
+  const out: number[] = [];
+  let n = Math.floor(-tf.x / worldPx) - 1;
+  while (tf.x + n * worldPx < MAP_WIDTH) {
+    if (tf.x + (n + 1) * worldPx > 0) out.push(n * MAP_WIDTH);
+    n++;
+  }
+  return out;
+}
+const sameCopies = (a: number[], b: number[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
 
 // Module-level so the current pan/zoom survives the WorldMap unmounting and
 // remounting (e.g. switching tabs and coming back) instead of snapping to 1:1.
@@ -117,6 +136,10 @@ const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
 export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  // The outer pan/zoom <g>. During an animation the loop writes its `transform`
+  // attribute directly (imperatively) every frame so the high-frequency zoom
+  // never goes through React's render path — only the settle commits to state.
+  const gRef = useRef<SVGGElement | null>(null);
   const [tf, setTf] = useState<Transform>(savedTf);
   // Live mirror of `tf` so event/effect callbacks read the latest transform
   // without re-subscribing on every pan frame. Also stash it at module scope so
@@ -147,6 +170,10 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // declutter while it's set (see visibleLabels) so each pan frame skips the
   // expensive O(n²) overlap pass — the cause of drag input lag.
   const [dragging, setDragging] = useState(false);
+  // True while the rAF animator (zoom/fly/arc) is running. Like `dragging`, it
+  // freezes the O(n²) label declutter (see visibleLabels) so each animation
+  // frame skips that pass; the layout is recomputed once when the motion settles.
+  const [animating, setAnimating] = useState(false);
 
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
@@ -167,12 +194,15 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // <svg>, never on the individual <path>.
   const drag = useRef<{
     active: boolean;
-    // ox/oy: fixed press origin, used to measure total displacement.
-    // lx/ly: last move position, used to compute the incremental pan delta.
+    // ox/oy: anchor in client pixels — the press origin, re-anchored on a
+    // copy-rebase. The live pan delta is measured from here every move.
     ox: number;
     oy: number;
-    lx: number;
-    ly: number;
+    // baseX/baseY/k: the transform the pan started from (re-anchored on rebase).
+    // The live transform is this base shifted by the delta from ox/oy.
+    baseX: number;
+    baseY: number;
+    k: number;
     moved: boolean;
     downId: string;
     guessable: boolean;
@@ -185,8 +215,9 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     active: false,
     ox: 0,
     oy: 0,
-    lx: 0,
-    ly: 0,
+    baseX: 0,
+    baseY: 0,
+    k: 1,
     moved: false,
     downId: "",
     guessable: false,
@@ -195,6 +226,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     cancelAnim();
+    // Stop any in-flight animation and commit its live transform into state, so
+    // the render triggered by setDragging below draws the <g> where it actually
+    // sits (its imperative attribute) instead of snapping back to a stale `tf`.
+    setAnimating(false);
+    setTf(tfRef.current);
     // Freeze the target where the view currently sits so the (now stopped)
     // animator has nothing to drift toward while the user drags.
     targetRef.current = tfRef.current;
@@ -204,12 +240,14 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     // Invert that to get viewBox units per client pixel for delta conversion.
     const rect = e.currentTarget.getBoundingClientRect();
     const fit = Math.min(rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+    const cur = tfRef.current;
     drag.current = {
       active: true,
       ox: e.clientX,
       oy: e.clientY,
-      lx: e.clientX,
-      ly: e.clientY,
+      baseX: cur.x,
+      baseY: cur.y,
+      k: cur.k,
       moved: false,
       downId: el.getAttribute("data-id") ?? "",
       guessable: el.getAttribute("data-guessable") === "1",
@@ -219,26 +257,44 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!drag.current.active) return;
-    // Client-pixel delta converted to viewBox units so the map tracks the cursor.
-    const dx = (e.clientX - drag.current.lx) * drag.current.scale;
-    const dy = (e.clientY - drag.current.ly) * drag.current.scale;
-    // Measure displacement from the press origin, not from the previous move,
-    // so a slow drag (many sub-threshold steps) still counts as a pan rather
-    // than collapsing into a click on the country under the press point.
-    if (
-      Math.abs(e.clientX - drag.current.ox) +
-        Math.abs(e.clientY - drag.current.oy) >
-      3
-    )
-      drag.current.moved = true;
-    drag.current.lx = e.clientX;
-    drag.current.ly = e.clientY;
-    setTf((p) => {
-      const next = { ...p, x: p.x + dx, y: p.y + dy };
-      targetRef.current = next;
-      return next;
-    });
+    const d = drag.current;
+    if (!d.active) return;
+    // Live screen-pixel delta from the current anchor.
+    const dxPx = e.clientX - d.ox;
+    const dyPx = e.clientY - d.oy;
+    // Once past the click threshold it's a pan, not a tap. `moved` is sticky.
+    if (Math.abs(dxPx) + Math.abs(dyPx) > 3) d.moved = true;
+    // Live transform = anchor base shifted by the delta (converted to viewBox
+    // units). Keep tfRef current so every other reader sees the on-screen view.
+    const live = {
+      k: d.k,
+      x: d.baseX + dxPx * d.scale,
+      y: d.baseY + dyPx * d.scale,
+    };
+    tfRef.current = live;
+    targetRef.current = live;
+    const svg = svgRef.current;
+    // If the pan revealed a new horizontal world-copy, rebase into React state so
+    // the tiling refills: committed `tf` + cleared CSS translate = identical
+    // pixels, so re-anchoring here is seamless. This only fires when crossing a
+    // MAP_WIDTH boundary (rare), keeping the hot path repaint-free the rest of
+    // the time.
+    if (!sameCopies(computeCopies(live), copiesRef.current)) {
+      // Clearing the CSS translate and re-baking it into `tf` must be atomic:
+      // otherwise the browser can paint the cleared-CSS / not-yet-moved-<g>
+      // intermediate state for one frame, which flickers as the seam crosses.
+      // flushSync commits the state synchronously so both land before any paint.
+      if (svg) svg.style.transform = "";
+      flushSync(() => setTf(live));
+      d.baseX = live.x;
+      d.baseY = live.y;
+      d.ox = e.clientX;
+      d.oy = e.clientY;
+      return;
+    }
+    // Hot path: GPU-composited translate of the whole SVG. No repaint of the
+    // ~500 vector paths, no React render — just a cheap layer transform.
+    if (svg) svg.style.transform = `translate(${dxPx}px, ${dyPx}px)`;
   };
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
@@ -249,6 +305,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     d.active = false;
     // Drag finished: unfreeze labels so the declutter runs once for the new view.
     setDragging(false);
+    // Commit the live transform into React state and drop the GPU translate. The
+    // committed <g> lands exactly where the CSS translate had it, so no jump.
+    const svg = svgRef.current;
+    if (svg) svg.style.transform = "";
+    setTf(tfRef.current);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -269,9 +330,10 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       // Undo the <g> translate+scale to get base viewBox coords (zoom-independent).
       // The world tiles horizontally for infinite scroll, so a click can land on
       // any wrapped copy; wrap bx back into [0, MAP_WIDTH) before the scan.
-      let bx = (vx - tf.x) / tf.k;
+      const cur = tfRef.current;
+      let bx = (vx - cur.x) / cur.k;
       bx = ((bx % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
-      const by = (vy - tf.y) / tf.k;
+      const by = (vy - cur.y) / cur.k;
       let best: string | null = null;
       let bestD2 = oceanSnapRadius * oceanSnapRadius; // squared radius = the limit
       for (const sh of guessableShapes) {
@@ -306,6 +368,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   //   country is, Google-Maps style.
   const startAnim = useCallback((mode: "zoom" | "fly" | "arc") => {
     modeRef.current = mode;
+    setAnimating(true); // freezes the label declutter for the duration
     if (animRef.current !== null) return; // loop already spinning
     lastTsRef.current = performance.now();
     const step = (now: number) => {
@@ -314,40 +377,63 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       lastTsRef.current = now;
       const cur = tfRef.current;
       const tgt = targetRef.current;
+      // Each mode computes the next transform and whether it has settled; the
+      // commit/draw below is shared.
+      let next: Transform;
+      let done: boolean;
       if (modeRef.current === "zoom") {
         const a = 1 - Math.exp(-dt / TAU_ZOOM);
         const k = cur.k + (tgt.k - cur.k) * a;
         // Finish once within SNAP_K of target so the last sliver doesn't crawl.
-        const done = Math.abs(tgt.k - k) <= tgt.k * SNAP_K;
+        done = Math.abs(tgt.k - k) <= tgt.k * SNAP_K;
         const f = focalRef.current;
         // Derive x/y from k so the focal world point stays under the cursor.
-        setTf(done ? tgt : { k, x: f.vx - f.wx * k, y: f.vy - f.wy * k });
-        animRef.current = done ? null : requestAnimationFrame(step);
-        return;
-      }
-      if (modeRef.current === "arc") {
+        next = done ? tgt : { k, x: f.vx - f.wx * k, y: f.vy - f.wy * k };
+      } else if (modeRef.current === "arc") {
         const arc = arcRef.current;
         if (!arc) {
           animRef.current = null;
+          setAnimating(false);
           return;
         }
         const raw = Math.min(1, (now - arc.t0) / arc.dur);
-        const view = arc.at(smoother(raw));
-        setTf(transformOf(view));
-        animRef.current = raw >= 1 ? null : requestAnimationFrame(step);
+        next = transformOf(arc.at(smoother(raw)));
+        done = raw >= 1;
+      } else {
+        const a = 1 - Math.exp(-dt / TAU_FLY);
+        next = {
+          k: cur.k + (tgt.k - cur.k) * a,
+          x: cur.x + (tgt.x - cur.x) * a,
+          y: cur.y + (tgt.y - cur.y) * a,
+        };
+        done =
+          Math.abs(tgt.k - next.k) < tgt.k * 1e-3 &&
+          Math.hypot(tgt.x - next.x, tgt.y - next.y) < 0.25;
+      }
+      tfRef.current = next;
+      if (done) {
+        // Settle: commit to React state and re-run the label declutter once for
+        // the final view. The JSX transform overwrites the imperative attribute
+        // at the identical value, so there's no jump.
+        targetRef.current = next;
+        setAnimating(false);
+        setTf(next);
+        animRef.current = null;
         return;
       }
-      const a = 1 - Math.exp(-dt / TAU_FLY);
-      const next: Transform = {
-        k: cur.k + (tgt.k - cur.k) * a,
-        x: cur.x + (tgt.x - cur.x) * a,
-        y: cur.y + (tgt.y - cur.y) * a,
-      };
-      const done =
-        Math.abs(tgt.k - next.k) < tgt.k * 1e-3 &&
-        Math.hypot(tgt.x - next.x, tgt.y - next.y) < 0.25;
-      setTf(done ? tgt : next);
-      animRef.current = done ? null : requestAnimationFrame(step);
+      // Mid-flight: write the transform straight to the DOM — crisp vectors, no
+      // React render and no label work this frame.
+      const g = gRef.current;
+      if (g)
+        g.setAttribute(
+          "transform",
+          `translate(${next.x} ${next.y}) scale(${next.k})`,
+        );
+      // Rebase into state only if the visible world-copy set changed (e.g. a
+      // zoom-out reveals another copy), so the tiling stays filled. The render
+      // writes the same transform the imperative attribute already holds.
+      if (!sameCopies(computeCopies(next), copiesRef.current)) setTf(next);
+      animRef.current = requestAnimationFrame(step);
     };
     animRef.current = requestAnimationFrame(step);
   }, []);
@@ -483,16 +569,12 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // of copy offsets (in base viewBox coords, multiples of MAP_WIDTH) whose copy
   // intersects the visible viewBox [0, MAP_WIDTH]. At k=1 this is 1-2 copies;
   // zoomed in it is exactly 1 — never more than ~3.
-  const copies = useMemo(() => {
-    const worldPx = MAP_WIDTH * tf.k; // world width in viewBox units at this zoom
-    const out: number[] = [];
-    let n = Math.floor(-tf.x / worldPx) - 1;
-    while (tf.x + n * worldPx < MAP_WIDTH) {
-      if (tf.x + (n + 1) * worldPx > 0) out.push(n * MAP_WIDTH);
-      n++;
-    }
-    return out;
-  }, [tf]);
+  const copies = useMemo(() => computeCopies(tf), [tf]);
+  // Mirror the rendered copy set so the animator/drag (which run off the React
+  // render path) can detect when a pan/zoom crossed into a new copy and needs a
+  // rebase render to refill the tiling.
+  const copiesRef = useRef(copies);
+  copiesRef.current = copies;
 
   // The country paths only depend on the fill state, not on pan/zoom. Build them
   // once per fill-state change so panning (which only mutates the wrapping <g>
@@ -534,11 +616,12 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   >([]);
   const visibleLabels = useMemo(() => {
     if (!showLabels) return (lastLabelsRef.current = []);
-    // While dragging, reuse the last decluttered set instead of recomputing it
-    // every pan frame. The labels sit inside the panned <g>, so they track the
-    // map via its transform; only the overlap layout would change, and that can
-    // wait until the drag ends. This is what keeps panning smooth.
-    if (dragging) return lastLabelsRef.current;
+    // While dragging OR animating (zoom/fly/arc), reuse the last decluttered set
+    // instead of recomputing it every frame. The labels sit inside the panned
+    // <g>, so they track the map via its transform; only the overlap layout would
+    // change, and that can wait until the motion settles. This O(n²) pass is the
+    // expensive part — freezing it is what keeps pan and zoom smooth.
+    if (dragging || animating) return lastLabelsRef.current;
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     const out: {
       id: string;
@@ -571,7 +654,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       }
     }
     return (lastLabelsRef.current = out);
-  }, [showLabels, language, tf, copies, dragging]);
+  }, [showLabels, language, tf, copies, dragging, animating]);
 
   const labelSize = LABEL_PX / tf.k;
 
@@ -600,7 +683,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
             world copy, offset by a whole MAP_WIDTH in base coords (static unless
             the visible copy set changes), so panning only mutates this one
             transform string. */}
-        <g transform={`translate(${tf.x} ${tf.y}) scale(${tf.k})`}>
+        <g ref={gRef} transform={`translate(${tf.x} ${tf.y}) scale(${tf.k})`}>
           {copies.map((off) => (
             <g key={off} transform={`translate(${off} 0)`}>
               {countryPaths}
