@@ -77,6 +77,14 @@ const TAU_ZOOM = 0.04;
 const SNAP_K = 4e-3;
 const TAU_FLY = 0.16;
 
+// Tiny countries (Vatican, San Marino, Monaco…) are sub-pixel at world zoom and
+// often sit inside a larger guessable neighbour, so a direct tap always lands on
+// the big country's path. When a tap falls within this radius (base viewBox
+// units) of a SMALLER guessable country's centroid, prefer the small one. Always
+// on (independent of the ocean-snap setting) so landlocked enclaves stay
+// reachable. Tight enough that it only fires when tapping essentially on them.
+const MICRO_SNAP_RADIUS = 16;
+
 // --- Van Wijk & Nuij smooth zoom/pan (the Google-Maps "fly") ---
 // A view is described as [centerX, centerY, viewWidth] in world units. The arc
 // zooms out just enough to bridge the gap, pans, then zooms back in — instead of
@@ -145,14 +153,20 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // without re-subscribing on every pan frame. Also stash it at module scope so
   // it persists across unmount/remount (tab switches).
   const tfRef = useRef(tf);
-  tfRef.current = tf;
-  savedTf = tf;
   // The animator continuously eases the live `tf` toward `targetRef` on a single
   // rAF loop (animRef). Wheel/button/reveal all just nudge the target and kick
   // the loop; nothing sets the rendered transform abruptly. `tauRef` is the
   // current smoothing time constant; `lastTsRef` is the previous frame time for
   // framerate-independent stepping.
   const animRef = useRef<number | null>(null);
+  // Sync the live mirror from state ONLY when the animator is idle. While the rAF
+  // loop runs it owns `tfRef.current`, writing the live per-frame transform; `tf`
+  // state is frozen at the animation's start. A stray re-render mid-flight (e.g. a
+  // hover setState while guessing) re-runs this body — it must NOT stomp the live
+  // value back to the frozen `tf`, or the next frame eases from a stale base and
+  // the zoom jitters back and forth until it settles.
+  if (animRef.current === null) tfRef.current = tf;
+  savedTf = tfRef.current;
   const targetRef = useRef<Transform>(tf);
   const lastTsRef = useRef(0);
   // Active Van Wijk flight: its path function, total duration, and start time.
@@ -174,6 +188,13 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // freezes the O(n²) label declutter (see visibleLabels) so each animation
   // frame skips that pass; the layout is recomputed once when the motion settles.
   const [animating, setAnimating] = useState(false);
+  // The country a hover (no button) would select — the same id a click resolves
+  // to, including ocean-snap / micro-enclave snapping. Drives the hover highlight
+  // and the pointer cursor so what lights up is exactly what a click will pick.
+  // `hoverRef` mirrors it so the high-frequency move handler only setState's when
+  // the resolved target actually changes, not on every pixel.
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const hoverRef = useRef<string | null>(null);
 
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
@@ -224,8 +245,65 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     scale: 1,
   });
 
+  // The country id a tap at this client point would select, or null. Shared by
+  // the click (pointerup) and the hover (pointermove) so the highlight always
+  // matches what a click picks. `hitId`/`hitGuessable` describe the path under
+  // the point: hover reads them off e.target; click passes the pointerdown-
+  // captured downId (pointer capture redirects the up event to the <svg>).
+  const resolveTarget = (
+    clientX: number,
+    clientY: number,
+    hitId: string,
+    hitGuessable: boolean,
+  ): string | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const vx = ((clientX - rect.left) / rect.width) * MAP_WIDTH;
+    const vy = ((clientY - rect.top) / rect.height) * MAP_HEIGHT;
+    // Undo the <g> translate+scale to get base viewBox coords (zoom-independent).
+    // The world tiles horizontally for infinite scroll, so a point can land on
+    // any wrapped copy; wrap bx back into [0, MAP_WIDTH) before the scan.
+    const cur = tfRef.current;
+    let bx = (vx - cur.x) / cur.k;
+    bx = ((bx % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
+    const by = (vy - cur.y) / cur.k;
+    // Nearest guessable centroid within radius `r`, optionally restricted to
+    // countries smaller than `maxArea` and excluding `exclude`.
+    const nearest = (r: number, maxArea = Infinity, exclude = "") => {
+      let best: string | null = null;
+      let bestD2 = r * r; // squared radius = the limit
+      for (const sh of guessableShapes) {
+        if (sh.id === exclude || sh.area >= maxArea) continue;
+        const dx = sh.cx - bx;
+        const dy = sh.cy - by;
+        const dist2 = dx * dx + dy * dy;
+        if (dist2 < bestD2) {
+          bestD2 = dist2;
+          best = sh.id;
+        }
+      }
+      return best;
+    };
+    if (hitId && hitGuessable) {
+      // Direct hit on a guessable country: prefer a SMALLER guessable country
+      // whose centroid is within the always-on micro radius (the only way to
+      // reach enclaves like Vatican/San Marino that sit fully inside a bigger
+      // neighbour). An unknown host area (0) means no cap, so the preference
+      // still applies; candidates with unknown area count as the smaller ones.
+      const hitArea = shapeById.get(hitId)?.area || Infinity;
+      return nearest(MICRO_SNAP_RADIUS, hitArea, hitId) ?? hitId;
+    }
+    // The point is on ocean (or non-guessable land). When enabled, snap to the
+    // nearest guessable country whose centroid is within the radius.
+    return oceanSnapRadius > 0 ? nearest(oceanSnapRadius) : null;
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     cancelAnim();
+    // A press starts a drag/click — drop any hover highlight.
+    hoverRef.current = null;
+    setHoverId(null);
     // Stop any in-flight animation and commit its live transform into state, so
     // the render triggered by setDragging below draws the <g> where it actually
     // sits (its imperative attribute) instead of snapping back to a stale `tf`.
@@ -258,7 +336,25 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
-    if (!d.active) return;
+    if (!d.active) {
+      // No button down: track what a click here would select so we can highlight
+      // it and show a pointer cursor. Only meaningful while guessing.
+      let id: string | null = null;
+      if (status === "guessing") {
+        const el = e.target as Element;
+        id = resolveTarget(
+          e.clientX,
+          e.clientY,
+          el.getAttribute("data-id") ?? "",
+          el.getAttribute("data-guessable") === "1",
+        );
+      }
+      if (id !== hoverRef.current) {
+        hoverRef.current = id;
+        setHoverId(id);
+      }
+      return;
+    }
     // Live screen-pixel delta from the current anchor.
     const dxPx = e.clientX - d.ox;
     const dyPx = e.clientY - d.oy;
@@ -300,8 +396,15 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     const d = drag.current;
     // Only react to the end of a real press. Without this guard a bare
     // pointerleave (cursor exiting the frame with no button down) would re-run
-    // the selection below using the stale ref from the previous click.
-    if (!d.active) return;
+    // the selection below using the stale ref from the previous click. A bare
+    // pointerleave still means the cursor left the map, so clear any hover.
+    if (!d.active) {
+      if (e.type === "pointerleave" && hoverRef.current) {
+        hoverRef.current = null;
+        setHoverId(null);
+      }
+      return;
+    }
     d.active = false;
     // Drag finished: unfreeze labels so the declutter runs once for the new view.
     setDragging(false);
@@ -314,39 +417,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
     if (d.moved || status !== "guessing") return;
-    // A tap/click (no drag) on a guessable country selects it directly.
-    if (d.downId && d.guessable) {
-      select(d.downId);
-      return;
-    }
-    // Otherwise the tap landed on the ocean (or non-guessable land). When enabled,
-    // snap to the nearest guessable country whose centroid is within the radius.
-    if (oceanSnapRadius > 0) {
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const vx = ((e.clientX - rect.left) / rect.width) * MAP_WIDTH;
-      const vy = ((e.clientY - rect.top) / rect.height) * MAP_HEIGHT;
-      // Undo the <g> translate+scale to get base viewBox coords (zoom-independent).
-      // The world tiles horizontally for infinite scroll, so a click can land on
-      // any wrapped copy; wrap bx back into [0, MAP_WIDTH) before the scan.
-      const cur = tfRef.current;
-      let bx = (vx - cur.x) / cur.k;
-      bx = ((bx % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
-      const by = (vy - cur.y) / cur.k;
-      let best: string | null = null;
-      let bestD2 = oceanSnapRadius * oceanSnapRadius; // squared radius = the limit
-      for (const sh of guessableShapes) {
-        const dx = sh.cx - bx;
-        const dy = sh.cy - by;
-        const dist2 = dx * dx + dy * dy;
-        if (dist2 < bestD2) {
-          bestD2 = dist2;
-          best = sh.id;
-        }
-      }
-      if (best) select(best);
-    }
+    // Resolve the tap the same way the hover preview did: a direct hit selects
+    // that country (or a smaller enclave snapped onto it); an ocean tap snaps to
+    // the nearest guessable centroid within the radius.
+    const id = resolveTarget(e.clientX, e.clientY, d.downId, d.guessable);
+    if (id) select(id);
   };
 
   const cancelAnim = useCallback(() => {
@@ -658,6 +733,21 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
 
   const labelSize = LABEL_PX / tf.k;
 
+  // The hover-target shape to highlight. Drawn as a cheap overlay on top of the
+  // memoized country paths so hovering never rebuilds the ~177-path array.
+  // Skipped when it's already the selected country (don't clobber that color).
+  const hoverShape =
+    status === "guessing" && hoverId && hoverId !== selectedId
+      ? shapeById.get(hoverId)
+      : undefined;
+
+  // The outer <g> transform: while animating the rAF loop owns the <g> attribute
+  // imperatively and `tf` state is frozen at the animation's start, so any render
+  // triggered mid-flight (e.g. a hover setState while guessing) must write the
+  // LIVE transform — not stale `tf`, which would snap the view back to the zoom's
+  // start and fight the animator frame-by-frame until it settles.
+  const renderTf = animating ? tfRef.current : tf;
+
   return (
     <div className="map-wrap">
       {overlay}
@@ -666,6 +756,10 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
         className="world-map"
         viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
+        // Pointer cursor whenever a hover would snap to a country (covers ocean
+        // snap zones, where the cursor is over water, not a path). undefined
+        // falls back to the CSS grab / :active grabbing rules while dragging.
+        style={{ cursor: hoverId ? "pointer" : undefined }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endPointer}
@@ -683,10 +777,23 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
             world copy, offset by a whole MAP_WIDTH in base coords (static unless
             the visible copy set changes), so panning only mutates this one
             transform string. */}
-        <g ref={gRef} transform={`translate(${tf.x} ${tf.y}) scale(${tf.k})`}>
+        <g
+          ref={gRef}
+          transform={`translate(${renderTf.x} ${renderTf.y}) scale(${renderTf.k})`}
+        >
           {copies.map((off) => (
             <g key={off} transform={`translate(${off} 0)`}>
               {countryPaths}
+              {hoverShape && (
+                <path
+                  d={hoverShape.d}
+                  className="hover-target"
+                  stroke="#ffffff"
+                  strokeWidth={0.5}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              )}
               {visibleLabels
                 .filter((l) => l.off === off)
                 .map((l) => {

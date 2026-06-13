@@ -265,9 +265,12 @@ body {
 
 .country { transition: fill 0.12s ease; }
 .country.guessable { cursor: pointer; }
-/* Hover tint applies only to unselected countries; the selected fill wins.
-   (An author CSS rule overrides the inline `fill` presentation attribute.) */
-.country.guessable:not(.selected):hover { fill: #8fb3d9; }
+/* Hover highlight: a JS-driven overlay clone of the country a click would
+   select (see WorldMap's resolveTarget/hoverShape). Drawn on top of the real
+   paths, so it follows the snap target rather than the raw path under the
+   cursor — the whole point being that tiny enclaves like Vatican light up even
+   though the cursor sits over their bigger host country. */
+.hover-target { fill: #8fb3d9; }
 
 .country-label {
   fill: #1f2937;
