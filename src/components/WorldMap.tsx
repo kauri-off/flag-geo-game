@@ -91,12 +91,15 @@ const TAU_FLY = 0.16;
 //  - MICRO_HIT_PX: only assist while the shape's largest on-screen dimension is
 //    under this many CSS px — i.e. actually hard to click. Zooming in grows it
 //    past the threshold and turns snapping off, so precise taps aren't stolen.
-//  - MICRO_SNAP_PX: how close (CSS px) the tap must be to the centroid to snap.
+//  - MICRO_REACH_PX: how close (CSS px) the tap must be to the micro-state's
+//    FOOTPRINT (its bounding box, not its centroid) to snap. Measuring from the
+//    footprint respects intent: a tap deep inside France stays France instead of
+//    jumping to Luxembourg just because it fell within a centroid radius.
 // Always on (independent of the ocean-snap setting) so landlocked micro-states
 // like Vatican/San Marino stay reachable.
 const MICRO_AREA_KM2 = 3000;
 const MICRO_HIT_PX = 14;
-const MICRO_SNAP_PX = 22;
+const MICRO_REACH_PX = 12;
 
 // --- Van Wijk & Nuij smooth zoom/pan (the Google-Maps "fly") ---
 // A view is described as [centerX, centerY, viewWidth] in world units. The arc
@@ -317,9 +320,24 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       const [x0, y0, x1, y1] = sh.bbox;
       return Math.max(x1 - x0, y1 - y0) * pxPerUnit < MICRO_HIT_PX;
     };
-    // Snap to a qualifying micro-state near the tap (centroid within MICRO_SNAP_PX
-    // on screen). Always on, independent of the ocean-snap setting.
-    const micro = nearest(MICRO_SNAP_PX / pxPerUnit, isMicro, hitId);
+    // Snap to the micro-state whose FOOTPRINT is nearest the tap, within
+    // MICRO_REACH_PX on screen. Distance-to-bbox (0 when the tap is inside the
+    // box) respects intent: a tap deep in France is far from Luxembourg's tiny
+    // footprint and stays France, even though it might be near its centroid.
+    const microReach = MICRO_REACH_PX / pxPerUnit;
+    let micro: string | null = null;
+    let microBest = microReach;
+    for (const sh of guessableShapes) {
+      if (sh.id === hitId || !isMicro(sh)) continue;
+      const [x0, y0, x1, y1] = sh.bbox;
+      const dx = Math.max(x0 - bx, 0, bx - x1);
+      const dy = Math.max(y0 - by, 0, by - y1);
+      const d = Math.hypot(dx, dy);
+      if (d < microBest) {
+        microBest = d;
+        micro = sh.id;
+      }
+    }
 
     if (hitId && hitGuessable) {
       // Tapped directly on a guessable country. If you hit a micro-state head-on,
