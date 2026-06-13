@@ -143,6 +143,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const modeRef = useRef<"zoom" | "fly" | "arc">("zoom");
   const focalRef = useRef({ vx: 0, vy: 0, wx: 0, wy: 0 });
 
+  // True while a finger/mouse drag is panning the map. We freeze the label
+  // declutter while it's set (see visibleLabels) so each pan frame skips the
+  // expensive O(n²) overlap pass — the cause of drag input lag.
+  const [dragging, setDragging] = useState(false);
+
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
   const selectedId = useGame((s) => s.selectedId);
@@ -171,6 +176,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     moved: boolean;
     downId: string;
     guessable: boolean;
+    // viewBox units per client pixel for this drag. The SVG scales its viewBox
+    // to the element (preserveAspectRatio "meet"), so a 1px cursor move is not
+    // 1 viewBox unit; we convert pan deltas through this so the point under the
+    // cursor stays pinned.
+    scale: number;
   }>({
     active: false,
     ox: 0,
@@ -180,6 +190,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     moved: false,
     downId: "",
     guessable: false,
+    scale: 1,
   });
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -188,6 +199,11 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     // animator has nothing to drift toward while the user drags.
     targetRef.current = tfRef.current;
     const el = e.target as Element;
+    // With xMidYMid meet the viewBox is uniformly scaled to fit; the on-screen
+    // size of one viewBox unit is min(rect.w/MAP_WIDTH, rect.h/MAP_HEIGHT).
+    // Invert that to get viewBox units per client pixel for delta conversion.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fit = Math.min(rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
     drag.current = {
       active: true,
       ox: e.clientX,
@@ -197,13 +213,16 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       moved: false,
       downId: el.getAttribute("data-id") ?? "",
       guessable: el.getAttribute("data-guessable") === "1",
+      scale: fit > 0 ? 1 / fit : 1,
     };
+    setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!drag.current.active) return;
-    const dx = e.clientX - drag.current.lx;
-    const dy = e.clientY - drag.current.ly;
+    // Client-pixel delta converted to viewBox units so the map tracks the cursor.
+    const dx = (e.clientX - drag.current.lx) * drag.current.scale;
+    const dy = (e.clientY - drag.current.ly) * drag.current.scale;
     // Measure displacement from the press origin, not from the previous move,
     // so a slow drag (many sub-threshold steps) still counts as a pan rather
     // than collapsing into a click on the country under the press point.
@@ -228,6 +247,8 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     // the selection below using the stale ref from the previous click.
     if (!d.active) return;
     d.active = false;
+    // Drag finished: unfreeze labels so the declutter runs once for the new view.
+    setDragging(false);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -508,8 +529,16 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // reject overlaps. Each kept label is tagged with the copy offset `off` it
   // belongs to so it can be rendered inside the matching copy <g> (where its
   // local x is just s.cx).
+  const lastLabelsRef = useRef<
+    { id: string; cx: number; cy: number; name: string; off: number }[]
+  >([]);
   const visibleLabels = useMemo(() => {
-    if (!showLabels) return [];
+    if (!showLabels) return (lastLabelsRef.current = []);
+    // While dragging, reuse the last decluttered set instead of recomputing it
+    // every pan frame. The labels sit inside the panned <g>, so they track the
+    // map via its transform; only the overlap layout would change, and that can
+    // wait until the drag ends. This is what keeps panning smooth.
+    if (dragging) return lastLabelsRef.current;
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     const out: {
       id: string;
@@ -541,8 +570,8 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
         out.push({ id: s.id, cx: s.cx, cy: s.cy, name, off });
       }
     }
-    return out;
-  }, [showLabels, language, tf, copies]);
+    return (lastLabelsRef.current = out);
+  }, [showLabels, language, tf, copies, dragging]);
 
   const labelSize = LABEL_PX / tf.k;
 
