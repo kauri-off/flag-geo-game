@@ -11,6 +11,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { shapes, MAP_WIDTH, MAP_HEIGHT } from "../map/world";
+import type { MapShape } from "../map/world";
 import { countryName } from "../i18n";
 import { sameFlag } from "../game/flagTwins";
 import { useGame } from "../store/gameStore";
@@ -77,13 +78,25 @@ const TAU_ZOOM = 0.04;
 const SNAP_K = 4e-3;
 const TAU_FLY = 0.16;
 
-// Tiny countries (Vatican, San Marino, Monaco…) are sub-pixel at world zoom and
-// often sit inside a larger guessable neighbour, so a direct tap always lands on
-// the big country's path. When a tap falls within this radius (base viewBox
-// units) of a SMALLER guessable country's centroid, prefer the small one. Always
-// on (independent of the ocean-snap setting) so landlocked enclaves stay
-// reachable. Tight enough that it only fires when tapping essentially on them.
-const MICRO_SNAP_RADIUS = 16;
+// Micro-state snapping. Some countries (Vatican, Monaco, San Marino,
+// Liechtenstein, Andorra, Singapore…) are far too small to click at world zoom
+// and often sit inside/against a larger guessable neighbour, so a direct tap
+// always lands on the big country's path. A tap near such a country's centroid
+// snaps to it. This must NOT fire between normal, clickable countries (the bug
+// where Hungary was un-pickable because a smaller-but-clickable neighbour kept
+// stealing the tap), so a country only qualifies as a snap target when it is
+// BOTH small in absolute area AND currently small on screen:
+//  - MICRO_AREA_KM2: absolute area ceiling. Excludes Hungary/Croatia/Montenegro
+//    etc. regardless of zoom; covers every genuine micro-state (≤ Luxembourg).
+//  - MICRO_HIT_PX: only assist while the shape's largest on-screen dimension is
+//    under this many CSS px — i.e. actually hard to click. Zooming in grows it
+//    past the threshold and turns snapping off, so precise taps aren't stolen.
+//  - MICRO_SNAP_PX: how close (CSS px) the tap must be to the centroid to snap.
+// Always on (independent of the ocean-snap setting) so landlocked micro-states
+// like Vatican/San Marino stay reachable.
+const MICRO_AREA_KM2 = 3000;
+const MICRO_HIT_PX = 14;
+const MICRO_SNAP_PX = 22;
 
 // --- Van Wijk & Nuij smooth zoom/pan (the Google-Maps "fly") ---
 // A view is described as [centerX, centerY, viewWidth] in world units. The arc
@@ -268,13 +281,23 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     let bx = (vx - cur.x) / cur.k;
     bx = ((bx % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
     const by = (vy - cur.y) / cur.k;
-    // Nearest guessable centroid within radius `r`, optionally restricted to
-    // countries smaller than `maxArea` and excluding `exclude`.
-    const nearest = (r: number, maxArea = Infinity, exclude = "") => {
+    // CSS px per base viewBox unit: the viewBox→element fit scale times the live
+    // <g> zoom. Lets us reason about on-screen sizes/distances (which is what
+    // "hard to click" means) regardless of zoom.
+    const fit = Math.min(rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+    const pxPerUnit = fit * cur.k;
+
+    // Nearest guessable centroid to the tap within radius `r` (base units),
+    // skipping `exclude` and anything that fails `accept`.
+    const nearest = (
+      r: number,
+      accept: (sh: MapShape) => boolean,
+      exclude = "",
+    ) => {
       let best: string | null = null;
       let bestD2 = r * r; // squared radius = the limit
       for (const sh of guessableShapes) {
-        if (sh.id === exclude || sh.area >= maxArea) continue;
+        if (sh.id === exclude || !accept(sh)) continue;
         const dx = sh.cx - bx;
         const dy = sh.cy - by;
         const dist2 = dx * dx + dy * dy;
@@ -285,18 +308,34 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       }
       return best;
     };
+
+    // A micro-state only qualifies for snapping when it's small in absolute area
+    // AND too small on screen to click reliably right now (so we stop stealing
+    // taps once you've zoomed in close enough to hit it directly).
+    const isMicro = (sh: MapShape) => {
+      if (sh.area >= MICRO_AREA_KM2) return false;
+      const [x0, y0, x1, y1] = sh.bbox;
+      return Math.max(x1 - x0, y1 - y0) * pxPerUnit < MICRO_HIT_PX;
+    };
+    // Snap to a qualifying micro-state near the tap (centroid within MICRO_SNAP_PX
+    // on screen). Always on, independent of the ocean-snap setting.
+    const micro = nearest(MICRO_SNAP_PX / pxPerUnit, isMicro, hitId);
+
     if (hitId && hitGuessable) {
-      // Direct hit on a guessable country: prefer a SMALLER guessable country
-      // whose centroid is within the always-on micro radius (the only way to
-      // reach enclaves like Vatican/San Marino that sit fully inside a bigger
-      // neighbour). An unknown host area (0) means no cap, so the preference
-      // still applies; candidates with unknown area count as the smaller ones.
-      const hitArea = shapeById.get(hitId)?.area || Infinity;
-      return nearest(MICRO_SNAP_RADIUS, hitArea, hitId) ?? hitId;
+      // Tapped directly on a guessable country. If you hit a micro-state head-on,
+      // keep it (don't let a neighbouring micro-state steal). Otherwise a nearby
+      // micro-state wins over the big country you clipped, else keep the big one.
+      const hit = shapeById.get(hitId);
+      if (hit && isMicro(hit)) return hitId;
+      return micro ?? hitId;
     }
-    // The point is on ocean (or non-guessable land). When enabled, snap to the
-    // nearest guessable country whose centroid is within the radius.
-    return oceanSnapRadius > 0 ? nearest(oceanSnapRadius) : null;
+    // The tap is on ocean (or non-guessable land). A nearby micro-state still
+    // wins (covers island micro-states with ocean-snap off); otherwise snap to
+    // the nearest guessable centroid within the user's ocean radius, if enabled.
+    return (
+      micro ??
+      (oceanSnapRadius > 0 ? nearest(oceanSnapRadius, () => true) : null)
+    );
   };
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
