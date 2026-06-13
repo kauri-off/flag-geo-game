@@ -7,6 +7,7 @@ import type { Feature, FeatureCollection, Geometry, Position } from 'geojson';
 import type { Topology } from 'topojson-specification';
 import topo from '../assets/countries-110m.json';
 import { countryById } from '../data/countries';
+import { nonGuessableTwins } from '../game/flagTwins';
 
 /** Base viewBox the projection is fitted to. The SVG scales responsively. */
 export const MAP_WIDTH = 980;
@@ -110,7 +111,9 @@ function toShape(
     cx: centroid[0],
     cy: centroid[1],
     area: meta?.area ?? 0,
-    guessable: !!meta,
+    // Territories that fly another country's identical flag are excluded from
+    // play (see flagTwins): never a quiz target, never a scored guess.
+    guessable: !!meta && !nonGuessableTwins.has(id),
     bbox: [x0, y0, x1, y1],
   };
 }

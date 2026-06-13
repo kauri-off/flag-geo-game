@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "gen-data": "node scripts/gen-data.mjs",
+    "gen-flag-twins": "node scripts/gen-flag-twins.mjs",
+    "check-flag-twins": "node scripts/gen-flag-twins.mjs --check",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

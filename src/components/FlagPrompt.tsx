@@ -19,9 +19,10 @@ export function FlagPrompt() {
   const requestMapZoom = useUi((s) => s.requestMapZoom);
   const mode = GAME_MODES[modeId];
 
-  // After a wrong guess the question flag becomes a button: an outline invites a
-  // click that flies the map in to the country it belongs to (handled by WorldMap).
-  const wrong = status === 'revealed' && lastCorrect === false;
+  // Once the round is revealed the question flag becomes a button: an outline
+  // invites a click that flies the map in to the country it belongs to (handled
+  // by WorldMap). This works whether the guess was right or wrong.
+  const revealed = status === 'revealed';
 
   // Flag size comes from the --fi-size variable set on the overlay (see
   // RoundBoard); falls back to the 3rem base if rendered outside one.
@@ -41,7 +42,7 @@ export function FlagPrompt() {
           {/* Empty left cell keeps the question flag centered whether or not
               the picked flag is shown on the right. */}
           <span aria-hidden />
-          {wrong ? (
+          {revealed ? (
             <button
               type="button"
               className="flag-zoom-btn"
