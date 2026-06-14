@@ -22,7 +22,7 @@ pub fn router() -> Router<AppState> {
         .route("/info", get(info))
         .route("/auth", post(auth_handler))
         .route("/rooms", get(list_rooms).post(create_room))
-        .route("/rooms/:code/join", post(join_room))
+        .route("/rooms/{code}/join", post(join_room))
         .route("/leaderboard", get(leaderboard))
 }
 
