@@ -79,6 +79,9 @@ pub struct Room {
     db: Db,
     mgr: Weak<RoomManager>,
     snapshot: Arc<RwLock<Snapshot>>,
+    /// A clone of this room's command channel, so the actor can schedule a
+    /// delayed self-message (the post-disconnect grace cleanup).
+    self_cmd: mpsc::Sender<Command>,
 
     players: Vec<Slot>,
     host_id: String,
@@ -90,6 +93,15 @@ pub struct Room {
     round_index: usize,
     round_started: Instant,
     round_deadline_ms: i64,
+
+    /// Absolute deadlines (epoch ms) for the current countdown / intermission,
+    /// so a reconnecting socket can be told the correct remaining time.
+    countdown_deadline_ms: i64,
+    intermission_deadline_ms: i64,
+    /// The last round's result and the final standings, retained so a socket that
+    /// reconnects during the intermission / after the match can be shown them.
+    last_round_result: Option<(u32, String, Vec<RoundPlayerResult>)>,
+    last_match_result: Option<(Vec<FinalStanding>, Option<String>)>,
 
     /// Set by handlers to (re)arm the loop timer after the current step.
     pending_arm: Option<Duration>,
@@ -109,6 +121,7 @@ impl Room {
         db: Db,
         mgr: Weak<RoomManager>,
         snapshot: Arc<RwLock<Snapshot>>,
+        self_cmd: mpsc::Sender<Command>,
         host_id: String,
         host_uid: Option<i64>,
         host_nick: String,
@@ -134,6 +147,7 @@ impl Room {
             db,
             mgr,
             snapshot,
+            self_cmd,
             players: vec![host],
             host_id,
             kicked_uids: std::collections::HashSet::new(),
@@ -142,6 +156,10 @@ impl Room {
             round_index: 0,
             round_started: Instant::now(),
             round_deadline_ms: 0,
+            countdown_deadline_ms: 0,
+            intermission_deadline_ms: 0,
+            last_round_result: None,
+            last_match_result: None,
             pending_arm: None,
         }
     }
@@ -192,6 +210,7 @@ impl Room {
             }
             Command::Connect { player_id, conn_id, sink } => self.connect(player_id, conn_id, sink),
             Command::Disconnect { player_id, conn_id } => self.disconnect(&player_id, conn_id),
+            Command::DropStale { player_id, conn_id } => self.drop_stale(&player_id, conn_id),
             Command::Msg { player_id, msg } => self.on_msg(player_id, msg).await,
         }
     }
@@ -254,13 +273,69 @@ impl Room {
         };
         let _ = sink.try_send(Arc::new(welcome));
 
+        // A socket that reconnects mid-match needs the in-flight round/result state
+        // that `Welcome` (phase string only) doesn't carry.
+        self.send_restore_state(&sink);
+
         // Tell everyone else (upsert by id on the client).
         let view = self.players[idx].view();
         self.broadcast_except(&id, ServerMsg::PlayerJoined { player: view });
     }
 
+    /// Replay the current match state to a single (re)connecting socket, reusing the
+    /// same messages a live client already handles. No-op in the lobby (`Welcome`
+    /// already covers it).
+    fn send_restore_state(&self, sink: &Sink) {
+        let send = |msg: ServerMsg| {
+            let _ = sink.try_send(Arc::new(msg));
+        };
+        match self.phase {
+            Phase::Countdown => {
+                let remaining = (self.countdown_deadline_ms - now_ms()).max(0);
+                send(ServerMsg::Countdown { seconds: (remaining as f64 / 1000.0).ceil() as u32 });
+            }
+            Phase::InRound => {
+                if let Some(target) = self.sequence.get(self.round_index).copied() {
+                    send(ServerMsg::RoundStart {
+                        index: self.round_index as u32,
+                        total: self.config.rounds,
+                        alpha2: target.alpha2.to_string(),
+                        deadline_ms: self.round_deadline_ms as f64,
+                    });
+                    send(self.scoreboard_msg());
+                }
+            }
+            Phase::Intermission => {
+                if let Some((index, target_id, results)) = &self.last_round_result {
+                    let remaining = (self.intermission_deadline_ms - now_ms()).max(0);
+                    send(ServerMsg::RoundResult {
+                        index: *index,
+                        target_id: target_id.clone(),
+                        results: results.clone(),
+                        intermission_ms: remaining as u32,
+                    });
+                    send(self.scoreboard_msg());
+                }
+            }
+            Phase::Finished => {
+                if let Some((standings, winner_id)) = &self.last_match_result {
+                    send(ServerMsg::MatchResult {
+                        standings: standings.clone(),
+                        winner_id: winner_id.clone(),
+                    });
+                }
+            }
+            Phase::Lobby => {}
+        }
+    }
+
     /// A socket closed. Ignored unless it's the player's *current* connection, so a
     /// stale close that races a reconnect can't drop the freshly attached socket.
+    ///
+    /// A close is treated as a *temporary* disconnect in every phase: the slot is
+    /// kept (marked offline) so the player can reconnect with their room token and
+    /// pick up where they left off. A delayed `DropStale` removes the slot only if
+    /// they never come back within the grace window.
     fn disconnect(&mut self, id: &str, conn_id: u64) {
         let Some(idx) = self.players.iter().position(|p| p.id == id) else {
             return; // already gone (e.g. an explicit leave removed the slot)
@@ -268,24 +343,41 @@ impl Room {
         if self.players[idx].conn_id != conn_id {
             return; // superseded by a newer connection; this close is stale
         }
-        if self.phase.is_running() {
-            // Keep the slot during a match; just mark it offline (reconnect grace).
-            self.players[idx].connected = false;
-            self.players[idx].sink = None;
-            let view = self.players[idx].view();
-            self.broadcast(ServerMsg::PlayerJoined { player: view });
-            // A dropped socket (e.g. an F5 refresh) is still a departure: abort the
-            // match if it leaves fewer than two players actually present to play.
-            if self.abort_if_too_few() {
-                return;
-            }
-            // The round may have been waiting only on the player who just dropped.
-            self.maybe_end_round();
-        } else {
-            self.players.retain(|p| p.id != id);
-            self.broadcast(ServerMsg::PlayerLeft { player_id: id.to_string() });
-            self.reassign_host_if_needed();
+        self.players[idx].connected = false;
+        self.players[idx].sink = None;
+        let view = self.players[idx].view();
+        self.broadcast(ServerMsg::PlayerJoined { player: view });
+        // The round may have been waiting only on the player who just dropped.
+        self.maybe_end_round();
+
+        // Schedule cleanup: if this exact connection is still offline after the
+        // grace window (no reconnect bumped its conn_id), drop the slot.
+        let tx = self.self_cmd.clone();
+        let player_id = id.to_string();
+        let grace = Duration::from_secs(self.cfg.disconnect_grace_sec);
+        tokio::spawn(async move {
+            sleep(grace).await;
+            let _ = tx.send(Command::DropStale { player_id, conn_id }).await;
+        });
+    }
+
+    /// The grace timer for a `disconnect` fired. Drop the slot only if it's still
+    /// the same offline connection (a reconnect would have set `connected` and a
+    /// fresh `conn_id`); then settle host/match like any other departure.
+    fn drop_stale(&mut self, id: &str, conn_id: u64) {
+        let Some(slot) = self.players.iter().find(|p| p.id == id) else {
+            return; // already removed (explicit leave / kick)
+        };
+        if slot.connected || slot.conn_id != conn_id {
+            return; // reconnected (or replaced) within the grace window
         }
+        self.players.retain(|p| p.id != id);
+        self.broadcast(ServerMsg::PlayerLeft { player_id: id.to_string() });
+        self.reassign_host_if_needed();
+        if self.abort_if_too_few() {
+            return;
+        }
+        self.maybe_end_round();
     }
 
     /// An explicit `LeaveRoom`: a deliberate departure, so the slot is removed in
@@ -305,12 +397,13 @@ impl Room {
         self.maybe_end_round();
     }
 
-    /// Abort a running match when fewer than two players remain *connected* — a
-    /// multiplayer match is meaningless solo. Counts connected players rather than
-    /// slots, since a disconnected slot is kept around for reconnect grace but can't
-    /// keep playing. Returns true if it aborted.
+    /// Abort a running match when fewer than two players remain — a multiplayer
+    /// match is meaningless solo. Counts slots (not connected sockets): a briefly
+    /// offline player keeps their slot for reconnect and is only removed once their
+    /// grace window expires, so a transient drop never aborts. Returns true if it
+    /// aborted.
     fn abort_if_too_few(&mut self) -> bool {
-        if self.phase.is_running() && self.players.iter().filter(|p| p.connected).count() < 2 {
+        if self.phase.is_running() && self.players.len() < 2 {
             self.abort_match();
             true
         } else {
@@ -480,7 +573,10 @@ impl Room {
             p.answer = None;
         }
         self.round_index = 0;
+        self.last_round_result = None;
+        self.last_match_result = None;
         self.phase = Phase::Countdown;
+        self.countdown_deadline_ms = now_ms() + 3000;
         self.broadcast(ServerMsg::Countdown { seconds: 3 });
         self.pending_arm = Some(Duration::from_secs(3));
     }
@@ -589,6 +685,10 @@ impl Room {
             results.push(r);
         }
 
+        // Retain the result so a socket reconnecting during the intermission can
+        // be shown it (and the correct remaining cooldown).
+        self.last_round_result = Some((self.round_index as u32, target_id.clone(), results.clone()));
+        self.intermission_deadline_ms = now_ms() + self.cfg.round_intermission_ms as i64;
         self.broadcast(ServerMsg::RoundResult {
             index: self.round_index as u32,
             target_id,
@@ -619,6 +719,8 @@ impl Room {
         standings.sort_by(|a, b| b.score.cmp(&a.score));
         let winner_id = standings.first().map(|s| s.player_id.clone());
 
+        // Retain so a socket reconnecting after the match still sees the results.
+        self.last_match_result = Some((standings.clone(), winner_id.clone()));
         self.broadcast(ServerMsg::MatchResult { standings: standings.clone(), winner_id });
 
         // Persist (fire-and-forget; never blocks the actor on errors).
@@ -646,13 +748,17 @@ impl Room {
         }
     }
 
-    fn broadcast_scoreboard(&self) {
+    fn scoreboard_msg(&self) -> ServerMsg {
         let standings = self
             .players
             .iter()
             .map(|p| Standing { player_id: p.id.clone(), score: p.score, answered: p.answer.is_some() })
             .collect();
-        self.broadcast(ServerMsg::Scoreboard { standings });
+        ServerMsg::Scoreboard { standings }
+    }
+
+    fn broadcast_scoreboard(&self) {
+        self.broadcast(self.scoreboard_msg());
     }
 
     fn broadcast(&self, msg: ServerMsg) {

@@ -44,6 +44,9 @@ pub enum Command {
     /// A websocket closed. Ignored unless `conn_id` matches the player's current
     /// connection (guards against stale closes racing a reconnect).
     Disconnect { player_id: String, conn_id: u64 },
+    /// Fired by the actor itself a grace period after a `Disconnect`: drop the
+    /// slot if it's still offline on the same `conn_id` (i.e. never reconnected).
+    DropStale { player_id: String, conn_id: u64 },
 }
 
 #[derive(Clone, Default)]
@@ -160,6 +163,7 @@ impl RoomManager {
             self.db.clone(),
             self.weak_self.clone(),
             snapshot,
+            handle.cmd.clone(),
             host_id,
             host_uid,
             host_nick,

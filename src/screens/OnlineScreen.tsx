@@ -1,6 +1,7 @@
 // Online multiplayer screen. Switches between connect, room browser and the live
 // room (lobby / countdown / race / results) based on the online store's view and
 // the server-reported room phase.
+import { useEffect } from 'react';
 import { ConnectPanel } from '../online/ConnectPanel';
 import { RoomList } from '../online/RoomList';
 import { Lobby } from '../online/Lobby';
@@ -15,6 +16,13 @@ export function OnlineScreen() {
   const view = useOnline((s) => s.view);
   const phase = useOnline((s) => s.phase);
   const status = useOnline((s) => s.status);
+
+  // After a page reload we keep the room token but not the live room state; if one
+  // is present, reconnect into the same seat and let the server restore state.
+  useEffect(() => {
+    const s = useOnline.getState();
+    if (s.roomToken && s.view !== 'room') s.reconnectRoom();
+  }, []);
 
   if (view === 'connect') {
     return (

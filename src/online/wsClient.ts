@@ -8,7 +8,14 @@ import type { ClientMsg, ServerMsg } from './protocol';
 interface Handlers {
   onMessage: (msg: ServerMsg) => void;
   onStatus: (status: 'connecting' | 'open' | 'closed') => void;
+  /** Called once we stop retrying after `maxAttempts` failed reconnects. */
+  onGiveUp?: () => void;
 }
+
+// Cap reconnect attempts so a dead room/host doesn't loop forever. The backoff
+// (capped at 15s) means ~8 tries spans roughly a minute — long enough to cover
+// the server's reconnect grace window before we give up.
+const MAX_ATTEMPTS = 8;
 
 let socket: WebSocket | null = null;
 let wsUrl = '';
@@ -71,6 +78,12 @@ function open() {
 function scheduleReconnect() {
   if (!shouldRun) return;
   attempts += 1;
+  if (attempts > MAX_ATTEMPTS) {
+    shouldRun = false;
+    clearTimers();
+    handlers?.onGiveUp?.();
+    return;
+  }
   const delay = Math.min(15_000, 500 * 2 ** Math.min(attempts, 5));
   reconnectTimer = setTimeout(open, delay);
 }

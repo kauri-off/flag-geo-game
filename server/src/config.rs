@@ -20,6 +20,9 @@ pub struct Config {
     pub no_limit_round_cap_sec: u64,
     /// Session/room token lifetime (seconds).
     pub token_ttl_sec: u64,
+    /// How long a player's slot is held offline for reconnect after their socket
+    /// drops, before it's dropped (and an under-populated match aborts). Seconds.
+    pub disconnect_grace_sec: u64,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -60,6 +63,7 @@ impl Config {
             round_intermission_ms: parse("ROUND_INTERMISSION_MS", 2500),
             no_limit_round_cap_sec: parse("NO_LIMIT_ROUND_CAP_SEC", 60),
             token_ttl_sec: parse("TOKEN_TTL_SEC", 6 * 3600),
+            disconnect_grace_sec: parse("DISCONNECT_GRACE_SEC", 60),
         }
     }
 

@@ -88,6 +88,9 @@ export interface OnlineState {
   logout: () => void;
   /** Continue a persisted login (or guest token) without re-authenticating. */
   resume: () => void;
+  /** Re-open the socket for a room we still hold a persisted token for (after a
+   *  page reload), restoring full room/match state from the server's Welcome. */
+  reconnectRoom: () => void;
   disconnect: () => void;
   refreshRooms: () => Promise<void>;
   refreshLeaderboard: () => Promise<void>;
@@ -218,6 +221,12 @@ export const useOnline = create<OnlineState>()(
         void get().refreshRooms();
       },
 
+      reconnectRoom: () => {
+        const { roomToken, selfId } = get();
+        if (!roomToken) return;
+        enterRoom(set, get, roomToken, selfId ?? '');
+      },
+
       disconnect: () => {
         wsClose();
         useGame.getState().setOnline(false);
@@ -323,13 +332,17 @@ export const useOnline = create<OnlineState>()(
     {
       name: 'flag-geo-online',
       // Persist connection preferences plus the account session (so a returning
-      // user stays logged in), but never live room/match state.
+      // user stays logged in). Also keep the active room token + self id so a page
+      // reload can reconnect into the same seat; the rest of the live room/match
+      // state is re-derived from the server's Welcome on reconnect.
       partialize: (s) => ({
         serverUrl: s.serverUrl,
         nickname: s.nickname,
         avatar: s.avatar,
         token: s.token,
         account: s.account,
+        roomToken: s.roomToken,
+        selfId: s.selfId,
       }),
     },
   ),
@@ -381,15 +394,32 @@ function enterRoom(set: Set, get: Get, roomToken: string, playerId: string) {
   set({ ...clearedRoom(), roomToken, selfId: playerId, view: 'room', status: 'connecting' });
   // Wire the board's confirm() to submit answers over this room's socket.
   useGame.getState().setOnline(true, (i, c) => get().submitAnswer(i, c));
+  // Tracks whether this room ever handshaked. A close before any Welcome means the
+  // token/room is stale (gone or expired) — bail to the browser instead of looping.
+  let gotWelcome = false;
   const url = `${wsBase(get().serverUrl)}/ws?token=${encodeURIComponent(roomToken)}`;
   wsConnect(url, {
-    onMessage: (m) => get().handleServerMsg(m),
-    onStatus: (status) =>
-      set({
-        status:
-          status === 'open' ? 'open' : status === 'connecting' ? 'connecting' : 'closed',
-      }),
+    onMessage: (m) => {
+      if (m.type === 'welcome') gotWelcome = true;
+      get().handleServerMsg(m);
+    },
+    onStatus: (status) => {
+      if (status === 'closed' && !gotWelcome) {
+        bailToBrowse(set, get, t('connectionLost', useSettings.getState().language));
+        return;
+      }
+      set({ status: status === 'open' ? 'open' : status === 'connecting' ? 'connecting' : 'closed' });
+    },
+    onGiveUp: () => bailToBrowse(set, get, t('connectionLost', useSettings.getState().language)),
   });
+}
+
+/** Tear down the socket and drop the (now stale) room, returning to the browser. */
+function bailToBrowse(set: Set, get: Get, error: string | null) {
+  wsClose();
+  useGame.getState().setOnline(false);
+  set({ view: 'browse', error, ...clearedRoom() });
+  void get().refreshRooms();
 }
 
 function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
@@ -511,6 +541,12 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
       break;
     }
     case 'error': {
+      // The server rejected our room token (e.g. the slot was dropped after the
+      // reconnect grace expired). The seat is gone — return to the browser.
+      if (msg.code === 'BAD_TOKEN') {
+        bailToBrowse(set, get, t('connectionLost', useSettings.getState().language));
+        break;
+      }
       set({ error: `${msg.message}` });
       break;
     }
