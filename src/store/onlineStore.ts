@@ -15,9 +15,13 @@ import {
   postAuth,
   postCreateRoom,
   postJoin,
+  postLogin,
+  postRegister,
   wsBase,
   type ServerInfo,
 } from '../online/rest';
+import { t } from '../i18n';
+import { useSettings } from './settingsStore';
 import { wsClose, wsConnect, wsSend } from '../online/wsClient';
 import type {
   FinalStanding,
@@ -49,6 +53,8 @@ export interface OnlineState {
   nickname: string;
   avatar: string;
   token: string | null;
+  /** Set when logged in to an account; null for guests. */
+  account: { username: string; avatar: string } | null;
 
   // --- session ---
   view: OnlineView;
@@ -77,6 +83,11 @@ export interface OnlineState {
   setNickname: (v: string) => void;
   setAvatar: (v: string) => void;
   connect: (password?: string) => Promise<void>;
+  register: (username: string, password: string, serverPassword?: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => void;
+  /** Continue a persisted login (or guest token) without re-authenticating. */
+  resume: () => void;
   disconnect: () => void;
   refreshRooms: () => Promise<void>;
   refreshLeaderboard: () => Promise<void>;
@@ -84,6 +95,7 @@ export interface OnlineState {
   joinRoom: (code: string, roomPassword?: string) => Promise<void>;
   updateConfig: (config: RoomConfig) => void;
   transferHost: (playerId: string) => void;
+  kickPlayer: (playerId: string) => void;
   startMatch: () => void;
   submitAnswer: (roundIndex: number, countryId: string) => void;
   leaveRoom: () => void;
@@ -98,6 +110,7 @@ export const useOnline = create<OnlineState>()(
       nickname: '',
       avatar: '', // a real country alpha-2, chosen on the connect screen
       token: null,
+      account: null,
 
       view: 'connect',
       status: 'idle',
@@ -128,19 +141,81 @@ export const useOnline = create<OnlineState>()(
         if (!get().nickname.trim()) return set({ error: 'Enter a nickname' });
         set({ status: 'busy', error: null });
         try {
-          const info = await getInfo(base);
-          if (info.protocol !== CLIENT_PROTOCOL) {
-            throw new Error(
-              `Server protocol (${info.protocol}) doesn't match this client (${CLIENT_PROTOCOL}). Update one of them.`,
-            );
-          }
+          const info = await checkServer(base);
           set({ serverInfo: info });
           const { token } = await postAuth(base, password);
-          set({ token, status: 'idle', view: 'browse' });
+          set({ token, account: null, status: 'idle', view: 'browse' });
           await get().refreshRooms();
         } catch (e) {
           set({ status: 'idle', error: errMsg(e), serverInfo: null });
         }
+      },
+
+      register: async (username, password, serverPassword) => {
+        const base = normalizeBase(get().serverUrl);
+        if (!base) return set({ error: 'Enter a server URL' });
+        if (!get().avatar) return set({ error: 'Pick an avatar' });
+        set({ status: 'busy', error: null });
+        try {
+          const info = await checkServer(base);
+          set({ serverInfo: info });
+          const acc = await postRegister(base, {
+            username: username.trim(),
+            password,
+            avatar: get().avatar,
+            serverPassword: serverPassword || undefined,
+          });
+          set({
+            token: acc.token,
+            account: { username: acc.username, avatar: acc.avatar },
+            avatar: acc.avatar,
+            status: 'idle',
+            view: 'browse',
+          });
+          await get().refreshRooms();
+        } catch (e) {
+          set({ status: 'idle', error: errMsg(e), serverInfo: null });
+        }
+      },
+
+      login: async (username, password) => {
+        const base = normalizeBase(get().serverUrl);
+        if (!base) return set({ error: 'Enter a server URL' });
+        set({ status: 'busy', error: null });
+        try {
+          const info = await checkServer(base);
+          set({ serverInfo: info });
+          const acc = await postLogin(base, { username: username.trim(), password });
+          set({
+            token: acc.token,
+            account: { username: acc.username, avatar: acc.avatar },
+            avatar: acc.avatar,
+            status: 'idle',
+            view: 'browse',
+          });
+          await get().refreshRooms();
+        } catch (e) {
+          set({ status: 'idle', error: errMsg(e), serverInfo: null });
+        }
+      },
+
+      logout: () => {
+        wsClose();
+        useGame.getState().setOnline(false);
+        set({
+          view: 'connect',
+          token: null,
+          account: null,
+          serverInfo: null,
+          rooms: [],
+          ...clearedRoom(),
+        });
+      },
+
+      resume: () => {
+        if (!get().token) return;
+        set({ view: 'browse', error: null, status: 'idle' });
+        void get().refreshRooms();
       },
 
       disconnect: () => {
@@ -149,6 +224,7 @@ export const useOnline = create<OnlineState>()(
         set({
           view: 'connect',
           token: null,
+          account: null,
           serverInfo: null,
           rooms: [],
           ...clearedRoom(),
@@ -176,12 +252,13 @@ export const useOnline = create<OnlineState>()(
       },
 
       createRoom: async (config, roomPassword) => {
-        const { serverUrl, token, nickname, avatar } = get();
+        const { serverUrl, token } = get();
         if (!token) return;
+        const { nickname, avatar } = identity(get);
         set({ status: 'busy', error: null });
         try {
           const { roomToken, playerId } = await postCreateRoom(normalizeBase(serverUrl), token, {
-            nickname: nickname.trim(),
+            nickname,
             avatar,
             config,
             roomPassword: roomPassword || undefined,
@@ -193,15 +270,16 @@ export const useOnline = create<OnlineState>()(
       },
 
       joinRoom: async (code, roomPassword) => {
-        const { serverUrl, token, nickname, avatar } = get();
+        const { serverUrl, token } = get();
         if (!token) return;
+        const { nickname, avatar } = identity(get);
         set({ status: 'busy', error: null });
         try {
           const { roomToken, playerId } = await postJoin(
             normalizeBase(serverUrl),
             token,
             code.trim().toUpperCase(),
-            { nickname: nickname.trim(), avatar, roomPassword: roomPassword || undefined },
+            { nickname, avatar, roomPassword: roomPassword || undefined },
           );
           enterRoom(set, get, roomToken, playerId);
         } catch (e) {
@@ -212,6 +290,8 @@ export const useOnline = create<OnlineState>()(
       updateConfig: (config) => wsSend({ type: 'updateConfig', config }),
 
       transferHost: (playerId) => wsSend({ type: 'transferHost', playerId }),
+
+      kickPlayer: (playerId) => wsSend({ type: 'kickPlayer', playerId }),
 
       startMatch: () => wsSend({ type: 'startMatch' }),
 
@@ -242,11 +322,14 @@ export const useOnline = create<OnlineState>()(
     }),
     {
       name: 'flag-geo-online',
-      // Only persist connection preferences, never live session state.
+      // Persist connection preferences plus the account session (so a returning
+      // user stays logged in), but never live room/match state.
       partialize: (s) => ({
         serverUrl: s.serverUrl,
         nickname: s.nickname,
         avatar: s.avatar,
+        token: s.token,
+        account: s.account,
       }),
     },
   ),
@@ -256,6 +339,26 @@ export const useOnline = create<OnlineState>()(
 
 type Set = (partial: Partial<OnlineState>) => void;
 type Get = () => OnlineState;
+
+/** Fetch `/info` and refuse to proceed if the server's protocol differs. */
+async function checkServer(base: string): Promise<ServerInfo> {
+  const info = await getInfo(base);
+  if (info.protocol !== CLIENT_PROTOCOL) {
+    throw new Error(
+      `Server protocol (${info.protocol}) doesn't match this client (${CLIENT_PROTOCOL}). Update one of them.`,
+    );
+  }
+  return info;
+}
+
+/** The nickname + avatar to seat with: the account's when logged in, else the
+ *  guest fields. (The server is authoritative for logged-in players regardless.) */
+function identity(get: Get): { nickname: string; avatar: string } {
+  const s = get();
+  return s.account
+    ? { nickname: s.account.username, avatar: s.account.avatar }
+    : { nickname: s.nickname.trim(), avatar: s.avatar };
+}
 
 function clearedRoom(): Partial<OnlineState> {
   return {
@@ -307,6 +410,17 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
     }
     case 'playerLeft': {
       set({ players: get().players.filter((p) => p.id !== msg.playerId) });
+      break;
+    }
+    case 'kicked': {
+      wsClose();
+      useGame.getState().setOnline(false);
+      set({
+        view: 'browse',
+        error: t('youWereKicked', useSettings.getState().language),
+        ...clearedRoom(),
+      });
+      void get().refreshRooms();
       break;
     }
     case 'profileUpdated': {

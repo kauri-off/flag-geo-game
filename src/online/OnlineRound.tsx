@@ -40,6 +40,7 @@ export function OnlineRound() {
   const language = useSettings((s) => s.language);
   const round = useOnline((s) => s.round);
   const phase = useOnline((s) => s.phase);
+  const leaveRoom = useOnline((s) => s.leaveRoom);
   const status = useGame((s) => s.status);
   const answered = useGame((s) => s.answeredOnline);
 
@@ -48,14 +49,19 @@ export function OnlineRound() {
       <RoundBoard />
       {phase === 'intermission' && <IntermissionPill />}
       <div className="online-hud">
-        {round && (
-          <div className="online-hud-round">
-            <span className="hud-key">{t('round', language)}</span>
-            <span className="hud-val">
-              {round.index + 1}/{round.total}
-            </span>
-          </div>
-        )}
+        <div className="online-hud-top">
+          {round && (
+            <div className="online-hud-round">
+              <span className="hud-key">{t('round', language)}</span>
+              <span className="hud-val">
+                {round.index + 1}/{round.total}
+              </span>
+            </div>
+          )}
+          <button className="btn ghost small online-leave" onClick={leaveRoom}>
+            {t('leaveRoom', language)}
+          </button>
+        </div>
         {phase !== 'intermission' && answered && status === 'guessing' && (
           <div className="waiting-pill">{t('waitingForResult', language)}</div>
         )}

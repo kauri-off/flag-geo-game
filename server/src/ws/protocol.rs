@@ -9,7 +9,7 @@ use ts_rs::TS;
 
 /// Bumped on any breaking protocol change; surfaced via `/version` + `/info` so a
 /// mismatched client can refuse to connect.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "bindings/")]
@@ -35,6 +35,10 @@ pub struct RoomConfig {
     /// Guesses allowed per round before it locks; 1 = single guess.
     pub attempts: u32,
     pub difficulty: DifficultyFilter,
+    /// When true, only logged-in (registered) players may join, and kicks become
+    /// a ban for the room's lifetime (guests have no stable identity to ban).
+    #[serde(default)]
+    pub registered_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -115,6 +119,8 @@ pub enum ClientMsg {
     UpdateConfig { config: RoomConfig },
     /// Host only: hand the host role to another player in the room.
     TransferHost { player_id: String },
+    /// Host only: remove a player from the room (a ban in registered-only rooms).
+    KickPlayer { player_id: String },
     /// Host only: begin the match.
     StartMatch,
     SubmitAnswer { round_index: u32, country_id: String },
@@ -137,6 +143,8 @@ pub enum ServerMsg {
     },
     PlayerJoined { player: Player },
     PlayerLeft { player_id: String },
+    /// Sent to a player who was removed by the host; their client leaves the room.
+    Kicked,
     ProfileUpdated { player_id: String, nickname: String, avatar: String },
     /// The room's match settings changed (host edited them in the lobby).
     ConfigUpdated { config: RoomConfig },

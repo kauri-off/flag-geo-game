@@ -4,4 +4,4 @@ import type { RoomConfig } from "./RoomConfig";
 /**
  * Client -> server messages over the WebSocket.
  */
-export type ClientMsg = { "type": "hello", roomToken: string, } | { "type": "setProfile", nickname: string, avatar: string, } | { "type": "updateConfig", config: RoomConfig, } | { "type": "transferHost", playerId: string, } | { "type": "startMatch" } | { "type": "submitAnswer", roundIndex: number, countryId: string, } | { "type": "chat", text: string, } | { "type": "leaveRoom" } | { "type": "ping" };
+export type ClientMsg = { "type": "hello", roomToken: string, } | { "type": "setProfile", nickname: string, avatar: string, } | { "type": "updateConfig", config: RoomConfig, } | { "type": "transferHost", playerId: string, } | { "type": "kickPlayer", playerId: string, } | { "type": "startMatch" } | { "type": "submitAnswer", roundIndex: number, countryId: string, } | { "type": "chat", text: string, } | { "type": "leaveRoom" } | { "type": "ping" };

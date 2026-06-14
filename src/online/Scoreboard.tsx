@@ -23,7 +23,9 @@ function roundWinner(results: RoundPlayerResult[]): string | null {
 
 export function Scoreboard() {
   const language = useSettings((s) => s.language);
-  const { standings, players, selfId, phase, lastResult } = useOnline();
+  const { standings, players, selfId, phase, lastResult, room } = useOnline();
+  const kickPlayer = useOnline((s) => s.kickPlayer);
+  const isHost = !!room && selfId === room.hostId;
 
   const byId = new Map(players.map((p) => [p.id, p]));
   const rows = standings
@@ -59,6 +61,16 @@ export function Scoreboard() {
                 </span>
               )}
               <span className="standing-score">{r.score}</span>
+              {isHost && r.playerId !== selfId && (
+                <button
+                  className="standing-kick"
+                  onClick={() => kickPlayer(r.playerId)}
+                  title={t('kick', language)}
+                  aria-label={t('kick', language)}
+                >
+                  ✕
+                </button>
+              )}
             </li>
           );
         })}

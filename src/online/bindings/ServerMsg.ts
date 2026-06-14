@@ -9,7 +9,7 @@ import type { Standing } from "./Standing";
 /**
  * Server -> client messages over the WebSocket.
  */
-export type ServerMsg = { "type": "welcome", playerId: string, room: RoomInfo, players: Array<Player>, phase: string, } | { "type": "playerJoined", player: Player, } | { "type": "playerLeft", playerId: string, } | { "type": "profileUpdated", playerId: string, nickname: string, avatar: string, } | { "type": "configUpdated", config: RoomConfig, } | { "type": "hostChanged", hostId: string, } | { "type": "countdown", seconds: number, } | { "type": "roundStart", index: number, total: number, alpha2: string, deadlineMs: number, } | { "type": "answerAck", roundIndex: number, accepted: boolean, } | { "type": "scoreboard", standings: Array<Standing>, } | { "type": "roundResult", index: number, targetId: string, results: Array<RoundPlayerResult>, 
+export type ServerMsg = { "type": "welcome", playerId: string, room: RoomInfo, players: Array<Player>, phase: string, } | { "type": "playerJoined", player: Player, } | { "type": "playerLeft", playerId: string, } | { "type": "kicked" } | { "type": "profileUpdated", playerId: string, nickname: string, avatar: string, } | { "type": "configUpdated", config: RoomConfig, } | { "type": "hostChanged", hostId: string, } | { "type": "countdown", seconds: number, } | { "type": "roundStart", index: number, total: number, alpha2: string, deadlineMs: number, } | { "type": "answerAck", roundIndex: number, accepted: boolean, } | { "type": "scoreboard", standings: Array<Standing>, } | { "type": "roundResult", index: number, targetId: string, results: Array<RoundPlayerResult>, 
 /**
  * Pause before the next round (or final results) begins, in ms; the
  * client counts it down so players see the cooldown.

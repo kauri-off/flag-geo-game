@@ -15,6 +15,7 @@ export const DEFAULT_CONFIG: RoomConfig = {
   timeLimitSec: 10,
   attempts: 1,
   difficulty: DEFAULT_DIFFICULTY,
+  registeredOnly: false,
 };
 
 export function RoomSettings({
@@ -47,6 +48,7 @@ export function RoomSettings({
           {filters.map((f) => (
             <span key={f as string}> · {f}</span>
           ))}
+          {config.registeredOnly && <span> · {t('registeredOnly', language)}</span>}
         </span>
       </div>
     );
@@ -83,6 +85,17 @@ export function RoomSettings({
         lang={language}
         onChange={(d) => onChange({ ...config, difficulty: d })}
       />
+      <label className="field toggle-field">
+        <input
+          type="checkbox"
+          checked={config.registeredOnly}
+          onChange={(e) => onChange({ ...config, registeredOnly: e.target.checked })}
+        />
+        <span>
+          {t('registeredOnly', language)}
+          <small className="hint">{t('registeredOnlyHint', language)}</small>
+        </span>
+      </label>
     </div>
   );
 }

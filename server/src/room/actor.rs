@@ -41,6 +41,8 @@ impl Phase {
 
 struct Slot {
     id: String,
+    /// Account id for a logged-in player; `None` for a guest.
+    uid: Option<i64>,
     nickname: String,
     avatar: String,
     score: i32,
@@ -77,6 +79,9 @@ pub struct Room {
 
     players: Vec<Slot>,
     host_id: String,
+    /// Account ids the host has kicked; rejected on rejoin for the room's life
+    /// (only populated for registered-only rooms, where everyone has a `uid`).
+    kicked_uids: std::collections::HashSet<i64>,
     phase: Phase,
     sequence: Vec<&'static Country>,
     round_index: usize,
@@ -102,11 +107,13 @@ impl Room {
         mgr: Weak<RoomManager>,
         snapshot: Arc<RwLock<Snapshot>>,
         host_id: String,
+        host_uid: Option<i64>,
         host_nick: String,
         host_avatar: String,
     ) -> Self {
         let host = Slot {
             id: host_id.clone(),
+            uid: host_uid,
             nickname: host_nick,
             avatar: host_avatar,
             score: 0,
@@ -125,6 +132,7 @@ impl Room {
             snapshot,
             players: vec![host],
             host_id,
+            kicked_uids: std::collections::HashSet::new(),
             phase: Phase::Lobby,
             sequence: Vec::new(),
             round_index: 0,
@@ -174,8 +182,8 @@ impl Room {
 
     async fn handle(&mut self, cmd: Command) {
         match cmd {
-            Command::Reserve { player_id, nickname, avatar, reply } => {
-                let res = self.reserve(player_id, nickname, avatar);
+            Command::Reserve { player_id, uid, nickname, avatar, reply } => {
+                let res = self.reserve(player_id, uid, nickname, avatar);
                 let _ = reply.send(res);
             }
             Command::Connect { player_id, sink } => self.connect(player_id, sink),
@@ -184,8 +192,22 @@ impl Room {
         }
     }
 
-    fn reserve(&mut self, id: String, nickname: String, avatar: String) -> Result<(), crate::error::AppError> {
+    fn reserve(
+        &mut self,
+        id: String,
+        uid: Option<i64>,
+        nickname: String,
+        avatar: String,
+    ) -> Result<(), crate::error::AppError> {
         use crate::error::AppError;
+        if self.config.registered_only && uid.is_none() {
+            return Err(AppError::Conflict("this room is for registered players only".into()));
+        }
+        if let Some(u) = uid {
+            if self.kicked_uids.contains(&u) {
+                return Err(AppError::Conflict("you were removed from this room".into()));
+            }
+        }
         if self.players.len() >= self.cfg.max_players_per_room {
             return Err(AppError::Conflict("room is full".into()));
         }
@@ -197,6 +219,7 @@ impl Room {
         }
         self.players.push(Slot {
             id,
+            uid,
             nickname,
             avatar,
             score: 0,
@@ -254,6 +277,7 @@ impl Room {
             ClientMsg::SetProfile { nickname, avatar } => self.set_profile(&id, nickname, avatar),
             ClientMsg::UpdateConfig { config } => self.update_config(&id, config),
             ClientMsg::TransferHost { player_id } => self.transfer_host(&id, &player_id),
+            ClientMsg::KickPlayer { player_id } => self.kick_player(&id, &player_id),
             ClientMsg::Chat { text } => self.on_chat(&id, text),
             ClientMsg::StartMatch => self.start_match(&id),
             ClientMsg::SubmitAnswer { round_index, country_id } => {
@@ -313,6 +337,39 @@ impl Room {
         self.host_id = target.to_string();
         let host_id = self.host_id.clone();
         self.broadcast(ServerMsg::HostChanged { host_id });
+    }
+
+    fn kick_player(&mut self, id: &str, target: &str) {
+        if id != self.host_id {
+            return self.send_to(id, ServerMsg::error("NOT_HOST", "only the host can kick"));
+        }
+        if target == id {
+            return; // the host can't kick themselves
+        }
+        let Some(slot) = self.players.iter().find(|p| p.id == target) else {
+            return self.send_to(id, ServerMsg::error("NO_PLAYER", "that player is not in the room"));
+        };
+        // In registered-only rooms, remember the account so they can't rejoin.
+        if self.config.registered_only {
+            if let Some(u) = slot.uid {
+                self.kicked_uids.insert(u);
+            }
+        }
+        // Tell the kicked socket first (while its sink still exists), then drop the
+        // slot: that releases the only remaining sink sender, so the writer task
+        // flushes this message and closes the socket.
+        self.send_to(target, ServerMsg::Kicked);
+        self.players.retain(|p| p.id != target);
+        self.broadcast(ServerMsg::PlayerLeft { player_id: target.to_string() });
+        self.reassign_host_if_needed();
+
+        // If a round was waiting only on the kicked player, settle it now.
+        if self.phase == Phase::InRound {
+            let pending = self.players.iter().any(|p| p.connected && p.answer.is_none());
+            if !pending && !self.players.is_empty() {
+                self.end_round();
+            }
+        }
     }
 
     fn on_chat(&mut self, id: &str, text: String) {

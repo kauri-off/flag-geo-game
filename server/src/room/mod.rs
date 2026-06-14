@@ -29,6 +29,8 @@ pub enum Command {
     /// Reserve a slot (REST join). Replies Ok or a human-readable reason.
     Reserve {
         player_id: String,
+        /// Account id for a logged-in player; `None` for a guest.
+        uid: Option<i64>,
         nickname: String,
         avatar: String,
         reply: oneshot::Sender<Result<(), AppError>>,
@@ -103,6 +105,7 @@ impl RoomManager {
         config: RoomConfig,
         password_hash: Option<String>,
         host_id: String,
+        host_uid: Option<i64>,
         host_nick: String,
         host_avatar: String,
     ) -> Result<String, AppError> {
@@ -155,6 +158,7 @@ impl RoomManager {
             self.weak_self.clone(),
             snapshot,
             host_id,
+            host_uid,
             host_nick,
             host_avatar,
         );

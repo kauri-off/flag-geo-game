@@ -17,6 +17,12 @@ use crate::error::AppError;
 pub struct SessionClaims {
     pub scope: String, // "session"
     pub exp: usize,
+    /// Account id for a logged-in session; null for anonymous guests.
+    #[serde(default)]
+    pub uid: Option<i64>,
+    /// Account username for a logged-in session; null for guests.
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,7 +48,23 @@ fn dec_key(cfg: &Config) -> DecodingKey {
 }
 
 pub fn issue_session_token(cfg: &Config) -> Result<String, AppError> {
-    let claims = SessionClaims { scope: "session".into(), exp: now() + cfg.token_ttl_sec as usize };
+    let claims = SessionClaims {
+        scope: "session".into(),
+        exp: now() + cfg.token_ttl_sec as usize,
+        uid: None,
+        name: None,
+    };
+    encode(&Header::default(), &claims, &enc_key(cfg)).map_err(|e| AppError::Internal(e.to_string()))
+}
+
+/// A session token bound to a logged-in account.
+pub fn issue_session_token_for_user(cfg: &Config, uid: i64, name: &str) -> Result<String, AppError> {
+    let claims = SessionClaims {
+        scope: "session".into(),
+        exp: now() + cfg.token_ttl_sec as usize,
+        uid: Some(uid),
+        name: Some(name.to_string()),
+    };
     encode(&Header::default(), &claims, &enc_key(cfg)).map_err(|e| AppError::Internal(e.to_string()))
 }
 
@@ -84,8 +106,16 @@ pub fn verify_room_token(cfg: &Config, token: &str) -> Result<RoomClaims, AppErr
 
 /// Verify the Bearer session token from an `Authorization` header.
 pub fn require_session(cfg: &Config, headers: &axum::http::HeaderMap) -> Result<(), AppError> {
+    session_claims(cfg, headers).map(|_| ())
+}
+
+/// Verify the Bearer session token and return its claims (incl. `uid`/`name`).
+pub fn session_claims(
+    cfg: &Config,
+    headers: &axum::http::HeaderMap,
+) -> Result<SessionClaims, AppError> {
     let token = bearer(headers).ok_or(AppError::Unauthorized)?;
-    verify_session_token(cfg, &token).map(|_| ())
+    verify_session_token(cfg, &token)
 }
 
 pub fn bearer(headers: &axum::http::HeaderMap) -> Option<String> {

@@ -4,13 +4,20 @@
 import type { RoomConfig, RoomSummary, LeaderboardRow } from './protocol';
 
 /** Protocol version this client speaks; must match the server's `/info`. */
-export const CLIENT_PROTOCOL = 2;
+export const CLIENT_PROTOCOL = 3;
 
 export interface ServerInfo {
   name: string;
   authRequired: boolean;
   maxPlayers: number;
   protocol: number;
+  registrationEnabled?: boolean;
+}
+
+export interface AuthedAccount {
+  token: string;
+  username: string;
+  avatar: string;
 }
 
 /** Strip a trailing slash so `${base}/info` never doubles up. */
@@ -57,6 +64,20 @@ export function getInfo(base: string): Promise<ServerInfo> {
 
 export function postAuth(base: string, password?: string): Promise<{ token: string }> {
   return request(base, '/auth', { method: 'POST', body: JSON.stringify({ password }) });
+}
+
+export function postRegister(
+  base: string,
+  body: { username: string; password: string; avatar: string; serverPassword?: string },
+): Promise<AuthedAccount> {
+  return request(base, '/register', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function postLogin(
+  base: string,
+  body: { username: string; password: string },
+): Promise<AuthedAccount> {
+  return request(base, '/login', { method: 'POST', body: JSON.stringify(body) });
 }
 
 export function getRooms(base: string, token: string): Promise<{ rooms: RoomSummary[] }> {

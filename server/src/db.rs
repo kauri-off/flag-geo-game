@@ -32,6 +32,15 @@ pub struct LeaderboardRow {
     pub played_at: f64,
 }
 
+/// A stored account row.
+#[derive(Debug, Clone)]
+pub struct UserRow {
+    pub id: i64,
+    pub username: String,
+    pub password_hash: String,
+    pub avatar: String,
+}
+
 impl Db {
     pub fn open(path: &str) -> Result<Self, AppError> {
         let conn = Connection::open(path).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -53,7 +62,15 @@ impl Db {
                  rounds INTEGER NOT NULL,
                  played_at INTEGER NOT NULL
              );
-             CREATE INDEX IF NOT EXISTS idx_results_score ON results(score DESC);",
+             CREATE INDEX IF NOT EXISTS idx_results_score ON results(score DESC);
+             CREATE TABLE IF NOT EXISTS users (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 username TEXT NOT NULL,
+                 username_lower TEXT NOT NULL UNIQUE,
+                 password_hash TEXT NOT NULL,
+                 avatar TEXT NOT NULL,
+                 created_at INTEGER NOT NULL
+             );",
         )
         .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(Db { conn: Arc::new(Mutex::new(conn)) })
@@ -86,6 +103,85 @@ impl Db {
             Ok(Err(e)) => tracing::error!("record_match failed: {e}"),
             Err(e) => tracing::error!("record_match task panicked: {e}"),
         }
+    }
+
+    /// Create an account. Returns the new user id, or `Conflict` if the username
+    /// (case-insensitive) is already taken.
+    pub async fn create_user(
+        &self,
+        username: String,
+        password_hash: String,
+        avatar: String,
+    ) -> Result<i64, AppError> {
+        let conn = self.conn.clone();
+        let username_lower = username.to_lowercase();
+        let created_at = chrono_now();
+        tokio::task::spawn_blocking(move || -> Result<i64, AppError> {
+            let c = conn.lock().expect("db mutex poisoned");
+            let res = c.execute(
+                "INSERT INTO users (username, username_lower, password_hash, avatar, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![username, username_lower, password_hash, avatar, created_at],
+            );
+            match res {
+                Ok(_) => Ok(c.last_insert_rowid()),
+                Err(rusqlite::Error::SqliteFailure(e, _))
+                    if e.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    Err(AppError::Conflict("username already taken".into()))
+                }
+                Err(e) => Err(AppError::Internal(e.to_string())),
+            }
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+    }
+
+    /// Look up an account by username (case-insensitive) for login.
+    pub async fn find_user(&self, username: String) -> Result<Option<UserRow>, AppError> {
+        let conn = self.conn.clone();
+        let username_lower = username.to_lowercase();
+        tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<UserRow>> {
+            let c = conn.lock().expect("db mutex poisoned");
+            let mut stmt = c.prepare(
+                "SELECT id, username, password_hash, avatar FROM users WHERE username_lower = ?1",
+            )?;
+            let mut rows = stmt.query_map([username_lower], |r| {
+                Ok(UserRow {
+                    id: r.get(0)?,
+                    username: r.get(1)?,
+                    password_hash: r.get(2)?,
+                    avatar: r.get(3)?,
+                })
+            })?;
+            rows.next().transpose()
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Read an account by id (used to seat a logged-in player with their current
+    /// username + avatar).
+    pub async fn get_user(&self, uid: i64) -> Result<Option<UserRow>, AppError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<UserRow>> {
+            let c = conn.lock().expect("db mutex poisoned");
+            let mut stmt =
+                c.prepare("SELECT id, username, password_hash, avatar FROM users WHERE id = ?1")?;
+            let mut rows = stmt.query_map([uid], |r| {
+                Ok(UserRow {
+                    id: r.get(0)?,
+                    username: r.get(1)?,
+                    password_hash: r.get(2)?,
+                    avatar: r.get(3)?,
+                })
+            })?;
+            rows.next().transpose()
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     /// Each player's cumulative all-time score, highest first (one row per name).

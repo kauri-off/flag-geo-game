@@ -12,11 +12,15 @@ import { Leaderboard } from './Leaderboard';
 
 export function RoomList() {
   const language = useSettings((s) => s.language);
-  const { nickname, avatar, rooms, status, error } = useOnline();
+  const { nickname, avatar, account, rooms, status, error } = useOnline();
   const refreshRooms = useOnline((s) => s.refreshRooms);
   const createRoom = useOnline((s) => s.createRoom);
   const joinRoom = useOnline((s) => s.joinRoom);
   const disconnect = useOnline((s) => s.disconnect);
+  const logout = useOnline((s) => s.logout);
+
+  const displayName = account ? account.username : nickname;
+  const displayAvatar = account ? account.avatar : avatar;
 
   const [roomPassword, setRoomPassword] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -37,10 +41,10 @@ export function RoomList() {
   return (
     <div className="room-browser">
       <div className="online-identity">
-        {avatar && <Flag alpha2={avatar} className="identity-flag" />}
-        <strong>{nickname}</strong>
-        <button className="btn ghost small" onClick={disconnect}>
-          {t('disconnect', language)}
+        {displayAvatar && <Flag alpha2={displayAvatar} className="identity-flag" />}
+        <strong>{displayName}</strong>
+        <button className="btn ghost small" onClick={account ? logout : disconnect}>
+          {t(account ? 'logOut' : 'disconnect', language)}
         </button>
       </div>
 

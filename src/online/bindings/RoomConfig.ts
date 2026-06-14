@@ -9,4 +9,9 @@ timeLimitSec: number,
 /**
  * Guesses allowed per round before it locks; 1 = single guess.
  */
-attempts: number, difficulty: DifficultyFilter, };
+attempts: number, difficulty: DifficultyFilter, 
+/**
+ * When true, only logged-in (registered) players may join, and kicks become
+ * a ban for the room's lifetime (guests have no stable identity to ban).
+ */
+registeredOnly: boolean, };

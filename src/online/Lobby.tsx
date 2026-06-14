@@ -14,6 +14,7 @@ export function Lobby() {
   const leaveRoom = useOnline((s) => s.leaveRoom);
   const updateConfig = useOnline((s) => s.updateConfig);
   const transferHost = useOnline((s) => s.transferHost);
+  const kickPlayer = useOnline((s) => s.kickPlayer);
   const [copied, setCopied] = useState(false);
 
   // The server announces the countdown once (e.g. 3); tick it down locally so the
@@ -93,6 +94,15 @@ export function Lobby() {
                 title={t('makeHost', language)}
               >
                 {t('makeHost', language)}
+              </button>
+            )}
+            {isHost && !starting && p.id !== selfId && (
+              <button
+                className="btn ghost small kick"
+                onClick={() => kickPlayer(p.id)}
+                title={t('kick', language)}
+              >
+                {t('kick', language)}
               </button>
             )}
           </li>

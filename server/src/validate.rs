@@ -6,6 +6,9 @@ use crate::game;
 pub const NICK_MAX: usize = 20;
 pub const CHAT_MAX: usize = 300;
 pub const ROOM_PW_MAX: usize = 64;
+pub const USERNAME_MIN: usize = 3;
+pub const PASSWORD_MIN: usize = 8;
+pub const PASSWORD_MAX: usize = 128;
 
 /// A tiny, deliberately conservative block list. Not a real moderation system —
 /// just enough to keep the most obvious slurs out of public room lists.
@@ -31,6 +34,38 @@ pub fn nickname(raw: &str) -> Result<String, AppError> {
         return Err(AppError::BadRequest("nickname is not allowed".into()));
     }
     Ok(n)
+}
+
+/// An account username: 3–20 chars, letters/digits/`_`/`-` only, not a slur. Used
+/// verbatim as the player's in-game nickname, so it doubles as a display name.
+pub fn username(raw: &str) -> Result<String, AppError> {
+    let n = raw.trim().to_string();
+    let len = n.chars().count();
+    if len < USERNAME_MIN || len > NICK_MAX {
+        return Err(AppError::BadRequest(format!(
+            "username must be {USERNAME_MIN}–{NICK_MAX} characters"
+        )));
+    }
+    if !n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err(AppError::BadRequest(
+            "username may only contain letters, digits, '_' and '-'".into(),
+        ));
+    }
+    if has_blocked(&n) {
+        return Err(AppError::BadRequest("username is not allowed".into()));
+    }
+    Ok(n)
+}
+
+/// An account password. Length-gated only (never trimmed or stored in the clear).
+pub fn password(raw: &str) -> Result<(), AppError> {
+    let len = raw.chars().count();
+    if len < PASSWORD_MIN || len > PASSWORD_MAX {
+        return Err(AppError::BadRequest(format!(
+            "password must be {PASSWORD_MIN}–{PASSWORD_MAX} characters"
+        )));
+    }
+    Ok(())
 }
 
 /// Normalise to upper-case alpha-2 and confirm it's a real country flag.
