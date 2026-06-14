@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rand::Rng;
+use rand::RngExt;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
 use crate::config::Config;
@@ -83,8 +83,8 @@ fn now_ms() -> i64 {
 const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
 
 fn gen_code() -> String {
-    let mut rng = rand::thread_rng();
-    (0..6).map(|_| CODE_ALPHABET[rng.gen_range(0..CODE_ALPHABET.len())] as char).collect()
+    let mut rng = rand::rng();
+    (0..6).map(|_| CODE_ALPHABET[rng.random_range(0..CODE_ALPHABET.len())] as char).collect()
 }
 
 impl RoomManager {

@@ -34,7 +34,7 @@ pub async fn handle(st: AppState, claims: RoomClaims, socket: WebSocket) {
                 Ok(j) => j,
                 Err(_) => continue,
             };
-            if ws_tx.send(Message::Text(json)).await.is_err() {
+            if ws_tx.send(Message::Text(json.into())).await.is_err() {
                 break;
             }
         }

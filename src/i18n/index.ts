@@ -44,7 +44,7 @@ const pluralRules: Record<Language, Intl.PluralRules> = {
  * back to the 'other' form, then English, when a category is missing.
  */
 export function plural(key: PluralKey, count: number, lang: Language): string {
-  const forms = plurals[key][lang];
+  const forms: Partial<Record<Intl.LDMLPluralRule, string>> = plurals[key][lang];
   const category = pluralRules[lang].select(count);
   return forms[category] ?? forms.other ?? plurals[key].en.other ?? key;
 }

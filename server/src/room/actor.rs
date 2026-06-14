@@ -342,7 +342,7 @@ impl Room {
         if pool.is_empty() {
             return self.send_to(id, ServerMsg::error("EMPTY_POOL", "no countries match the filters"));
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.sequence = game::pool::make_sequence(&pool, self.config.rounds as usize, &mut rng);
         for p in &mut self.players {
             p.score = 0;
