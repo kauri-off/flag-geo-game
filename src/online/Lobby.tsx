@@ -57,7 +57,7 @@ export function Lobby() {
             {copied ? t('copied', language) : t('copy', language)}
           </button>
         </div>
-        <button className="btn ghost small" onClick={leaveRoom}>
+        <button className="btn ghost small lobby-leave" onClick={leaveRoom}>
           {t('leaveRoom', language)}
         </button>
       </div>

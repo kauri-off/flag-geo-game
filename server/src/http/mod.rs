@@ -140,6 +140,10 @@ async fn seat_identity(
     } else {
         let nickname = validate::nickname(guest_nick)?;
         let avatar = validate::avatar(guest_avatar)?;
+        // Guests may not impersonate a registered account by reusing its name.
+        if st.db.find_user(nickname.clone()).await?.is_some() {
+            return Err(AppError::Conflict("this name belongs to a registered account".into()));
+        }
         Ok((None, nickname, avatar))
     }
 }
