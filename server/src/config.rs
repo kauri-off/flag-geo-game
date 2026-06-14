@@ -7,6 +7,9 @@ pub struct Config {
     pub server_name: String,
     /// If set, clients must supply this password to `/auth` before doing anything.
     pub server_password: Option<String>,
+    /// Whether anonymous guests may play. When false, only registered accounts
+    /// (via `/register` / `/login`) can obtain a session; `/auth` is rejected.
+    pub allow_guests: bool,
     /// HMAC secret for session/room tokens. Generated per-process if unset.
     pub jwt_secret: String,
     /// Allowed CORS origins; a single "*" disables the allowlist (dev only).
@@ -33,6 +36,14 @@ fn parse<T: std::str::FromStr>(key: &str, default: T) -> T {
     var(key).and_then(|v| v.parse().ok()).unwrap_or(default)
 }
 
+/// Parse a boolean env var, accepting common spellings (true/false, 1/0, yes/no).
+fn bool_var(key: &str, default: bool) -> bool {
+    match var(key).map(|v| v.trim().to_ascii_lowercase()) {
+        Some(v) => matches!(v.as_str(), "1" | "true" | "yes" | "on"),
+        None => default,
+    }
+}
+
 impl Config {
     pub fn from_env() -> Self {
         let jwt_secret = var("JWT_SECRET").unwrap_or_else(|| {
@@ -55,6 +66,7 @@ impl Config {
             port: parse("PORT", 8080),
             server_name: var("SERVER_NAME").unwrap_or_else(|| "Flag Geo Server".to_string()),
             server_password: var("SERVER_PASSWORD"),
+            allow_guests: bool_var("ALLOW_GUESTS", true),
             jwt_secret,
             cors_origins,
             db_path: var("DB_PATH").unwrap_or_else(|| "flag-geo.db".to_string()),

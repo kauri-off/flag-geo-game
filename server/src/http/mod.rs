@@ -40,6 +40,7 @@ async fn info(State(st): State<AppState>) -> Json<Value> {
     Json(json!({
         "name": st.config.server_name,
         "authRequired": st.config.auth_required(),
+        "guestsAllowed": st.config.allow_guests,
         "maxPlayers": st.config.max_players_per_room,
         "protocol": PROTOCOL_VERSION,
         "registrationEnabled": true,
@@ -58,6 +59,9 @@ async fn auth_handler(
     Json(body): Json<AuthReq>,
 ) -> AppResult<Json<Value>> {
     rate_limit(&st, &headers, addr)?;
+    if !st.config.allow_guests {
+        return Err(AppError::Conflict("this server requires a registered account".into()));
+    }
     if let Some(expected) = &st.config.server_password {
         let supplied = body.password.unwrap_or_default();
         if !auth::server_password_matches(expected, &supplied) {

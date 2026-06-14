@@ -567,7 +567,7 @@ body {
 /* lobby */
 .lobby { max-width: 640px; margin: 0 auto; }
 .lobby-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.lobby-leave { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); }
+.btn.ghost.lobby-leave { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); }
 .room-code-box { display: flex; align-items: center; gap: 10px; }
 .room-code { font-family: ui-monospace, monospace; font-size: 1.4rem; font-weight: 800; letter-spacing: 4px; color: var(--accent); }
 .countdown-banner { text-align: center; font-size: 1.4rem; font-weight: 700; padding: 14px; color: var(--accent); }
@@ -638,7 +638,7 @@ body {
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
-.online-leave {
+.btn.ghost.online-leave {
   margin-left: auto;
   color: #fec2c8;
   border-color: rgba(226, 85, 99, 0.5);
