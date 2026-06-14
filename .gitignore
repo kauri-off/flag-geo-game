@@ -4,3 +4,11 @@ dist-ssr
 *.local
 .DS_Store
 node_modules/.tmp
+
+# Rust server build + local data
+server/target
+server/bindings
+server/*.db
+server/*.db-wal
+server/*.db-shm
+server/.env

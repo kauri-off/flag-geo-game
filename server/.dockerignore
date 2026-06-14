@@ -1,0 +1,12 @@
+# Keep the build context small and reproducible — never ship host build output,
+# local data or secrets into the image.
+target
+bindings
+*.db
+*.db-wal
+*.db-shm
+.env
+.git
+Dockerfile
+.dockerignore
+README.md

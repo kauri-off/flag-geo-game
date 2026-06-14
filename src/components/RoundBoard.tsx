@@ -15,14 +15,20 @@ export function RoundBoard() {
   const status = useGame((s) => s.status);
   const startedAt = useGame((s) => s.startedAt);
   const challenge = useGame((s) => s.challenge);
+  const online = useGame((s) => s.online);
+  const onlineTimeLimitSec = useGame((s) => s.onlineTimeLimitSec);
   const confirm = useGame((s) => s.confirm);
   const next = useGame((s) => s.next);
   const language = useSettings((s) => s.language);
   const confirmMode = useSettings((s) => s.confirmMode);
   const practiceSeconds = useSettings((s) => s.answerSeconds);
 
-  // A challenge sets its own per-answer limit; free practice uses the setting.
-  const answerSeconds = challenge ? challenge.config.timeLimitSec : practiceSeconds;
+  // Online uses the room's limit, a challenge its own, free practice the setting.
+  const answerSeconds = online
+    ? onlineTimeLimitSec
+    : challenge
+      ? challenge.config.timeLimitSec
+      : practiceSeconds;
 
   // Spacebar: confirm during a guess (spacebar mode), advance after reveal.
   useEffect(() => {
@@ -50,16 +56,17 @@ export function RoundBoard() {
   // Answer timer: when it runs out, lock in the round as a timeout. Re-armed on
   // every new round and on resume (both change startedAt) and disabled when the
   // limit is 0. Fires after the *remaining* time so a partly-elapsed round isn't
-  // granted the full limit again after navigating away and back.
+  // granted the full limit again after navigating away and back. Online rounds
+  // are timed by the server, so the local timeout is disabled there.
   useEffect(() => {
-    if (status !== 'guessing' || answerSeconds <= 0) return;
+    if (online || status !== 'guessing' || answerSeconds <= 0) return;
     const remaining = answerSeconds * 1000 - (performance.now() - startedAt);
     const id = window.setTimeout(() => {
       const g = useGame.getState();
       if (g.status === 'guessing') g.timeUp();
     }, Math.max(0, remaining));
     return () => clearTimeout(id);
-  }, [status, startedAt, answerSeconds]);
+  }, [status, startedAt, answerSeconds, online]);
 
   if (status === 'empty') {
     return (

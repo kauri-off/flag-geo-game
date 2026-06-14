@@ -2,15 +2,17 @@
 // new game modes / screens can be slotted in without touching each other.
 import { GameScreen } from './screens/GameScreen';
 import { ChallengeScreen } from './screens/ChallengeScreen';
+import { OnlineScreen } from './screens/OnlineScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useUi, type Screen } from './store/uiStore';
 import { useSettings } from './store/settingsStore';
 import { t } from './i18n';
 
-const NAV: { screen: Screen; key: 'play' | 'challenge' | 'history' | 'settings' }[] = [
+const NAV: { screen: Screen; key: 'play' | 'challenge' | 'online' | 'history' | 'settings' }[] = [
   { screen: 'play', key: 'play' },
   { screen: 'challenge', key: 'challenge' },
+  { screen: 'online', key: 'online' },
   { screen: 'history', key: 'history' },
   { screen: 'settings', key: 'settings' },
 ];
@@ -39,6 +41,7 @@ export default function App() {
       <main className="content">
         {screen === 'play' && <GameScreen />}
         {screen === 'challenge' && <ChallengeScreen />}
+        {screen === 'online' && <OnlineScreen />}
         {screen === 'history' && <HistoryScreen />}
         {screen === 'settings' && <SettingsScreen />}
       </main>

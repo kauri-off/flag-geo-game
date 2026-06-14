@@ -39,6 +39,19 @@ export interface GameState {
   /** Active scored run, or null during free practice. */
   challenge: ChallengeState | null;
 
+  /** True while an online match owns the board: the server drives rounds and
+   *  scores answers, so newRound()/the answer timer are disabled and confirm()
+   *  submits to the server instead of recording history. */
+  online: boolean;
+  /** Index of the current online round (echoed back on submit). */
+  onlineRoundIndex: number;
+  /** The online room's per-answer limit (seconds) for the countdown bar. */
+  onlineTimeLimitSec: number;
+  /** True once the player has submitted this online round (locks the board). */
+  answeredOnline: boolean;
+  /** Submit hook wired up by the online store; null when offline. */
+  submitOnline: ((roundIndex: number, countryId: string) => void) | null;
+
   newRound: () => void;
   select: (id: string) => void;
   confirm: () => void;
@@ -49,6 +62,10 @@ export interface GameState {
   resetSession: () => void;
   startChallenge: (config: ChallengeConfig) => void;
   endChallenge: () => void;
+
+  setOnline: (on: boolean, submit?: (roundIndex: number, countryId: string) => void) => void;
+  setOnlineRound: (r: { index: number; alpha2: string; targetId: string; timeLimitSec: number }) => void;
+  applyOnlineResult: (r: { targetId: string; correct: boolean; timeMs: number; timedOut: boolean }) => void;
 }
 
 const emptySession = (): SessionStats => ({ rounds: 0, correct: 0, times: [] });
@@ -68,7 +85,15 @@ export const useGame = create<GameState>((set, get) => ({
   session: emptySession(),
   challenge: null,
 
+  online: false,
+  onlineRoundIndex: 0,
+  onlineTimeLimitSec: 0,
+  answeredOnline: false,
+  submitOnline: null,
+
   newRound: () => {
+    // Online rounds are driven by the server; the local loop is a no-op.
+    if (get().online) return;
     const { challenge } = get();
     // A finished challenge run stops here; the screen switches to the analysis.
     if (challenge && challenge.results.length >= challenge.config.rounds) {
@@ -103,8 +128,10 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   select: (id) => {
-    const { status, wrongPicks } = get();
+    const { status, wrongPicks, online, answeredOnline } = get();
     if (status !== 'guessing') return;
+    // Once an online answer is locked in, the board is read-only until reveal.
+    if (online && answeredOnline) return;
     // A country already guessed wrong this round can't be picked again.
     if (wrongPicks.includes(id)) return;
     set({ selectedId: id });
@@ -119,6 +146,19 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   confirm: () => {
+    // Online: submit the pick to the server (authoritative) and lock the board.
+    // The reveal arrives later via applyOnlineResult.
+    const s0 = get();
+    if (s0.online) {
+      if (s0.status !== 'guessing' || s0.answeredOnline || !s0.selectedId || !s0.submitOnline) {
+        return;
+      }
+      if (useSettings.getState().soundOn) playSelect();
+      s0.submitOnline(s0.onlineRoundIndex, s0.selectedId);
+      set({ answeredOnline: true });
+      return;
+    }
+
     const { status, targetId, targetAlpha2, selectedId, startedAt, challenge, attemptsLeft, lastTimedOut, wrongPicks } = get();
     if (status !== 'guessing' || !targetId || !targetAlpha2) return;
 
@@ -220,4 +260,45 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   endChallenge: () => set({ challenge: null, status: 'idle' }),
+
+  setOnline: (on, submit) =>
+    set({
+      online: on,
+      submitOnline: on ? submit ?? get().submitOnline : null,
+      // Leaving online mode parks the board until the next (offline) round.
+      ...(on ? {} : { status: 'idle', selectedId: null, answeredOnline: false }),
+    }),
+
+  // Called when the server starts a round: show the flag and accept clicks.
+  setOnlineRound: ({ index, alpha2, targetId, timeLimitSec }) =>
+    set({
+      online: true,
+      status: 'guessing',
+      onlineRoundIndex: index,
+      onlineTimeLimitSec: timeLimitSec,
+      answeredOnline: false,
+      targetId,
+      targetAlpha2: alpha2,
+      selectedId: null,
+      wrongPicks: [],
+      attemptsLeft: 1,
+      lastCorrect: null,
+      lastTimeMs: null,
+      lastTimedOut: false,
+      startedAt: performance.now(),
+      pausedAt: null,
+    }),
+
+  // Called when the server reveals the round: flip to the green/red result. The
+  // authoritative target id comes from the server so the highlight is correct.
+  applyOnlineResult: ({ targetId, correct, timeMs, timedOut }) => {
+    if (useSettings.getState().soundOn) (correct ? playCorrect : playWrong)();
+    set({
+      status: 'revealed',
+      targetId,
+      lastCorrect: correct,
+      lastTimeMs: timeMs,
+      lastTimedOut: timedOut,
+    });
+  },
 }));

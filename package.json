@@ -7,6 +7,8 @@
     "gen-data": "node scripts/gen-data.mjs",
     "gen-flag-twins": "node scripts/gen-flag-twins.mjs",
     "check-flag-twins": "node scripts/gen-flag-twins.mjs --check",
+    "gen-server-data": "node scripts/gen-server-data.mjs",
+    "gen-protocol": "node scripts/gen-protocol.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
