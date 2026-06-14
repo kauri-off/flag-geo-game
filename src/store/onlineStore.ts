@@ -497,6 +497,19 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
       void get().refreshLeaderboard();
       break;
     }
+    case 'matchAborted': {
+      set({
+        phase: 'lobby',
+        matchResult: null,
+        round: null,
+        lastResult: null,
+        intermissionUntil: null,
+        countdown: null,
+        standings: [],
+        error: t('matchAborted', useSettings.getState().language),
+      });
+      break;
+    }
     case 'error': {
       set({ error: `${msg.message}` });
       break;

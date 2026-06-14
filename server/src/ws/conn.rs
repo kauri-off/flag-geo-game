@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 
 use crate::auth::RoomClaims;
 use crate::rate_limit::TokenBucket;
-use crate::room::Command;
+use crate::room::{next_conn_id, Command};
 use crate::state::AppState;
 use crate::ws::protocol::{ClientMsg, ServerMsg};
 
@@ -23,6 +23,7 @@ pub async fn handle(st: AppState, claims: RoomClaims, socket: WebSocket) {
         return; // room gone between join and connect; just drop the socket
     };
     let player_id = claims.pid.clone();
+    let conn_id = next_conn_id();
 
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (sink_tx, mut sink_rx) = mpsc::channel::<Arc<ServerMsg>>(SINK_CAPACITY);
@@ -44,7 +45,7 @@ pub async fn handle(st: AppState, claims: RoomClaims, socket: WebSocket) {
     // Attach to the room.
     if handle
         .cmd
-        .send(Command::Connect { player_id: player_id.clone(), sink: sink_tx })
+        .send(Command::Connect { player_id: player_id.clone(), conn_id, sink: sink_tx })
         .await
         .is_err()
     {
@@ -93,6 +94,6 @@ pub async fn handle(st: AppState, claims: RoomClaims, socket: WebSocket) {
         }
     }
 
-    let _ = handle.cmd.send(Command::Disconnect { player_id }).await;
+    let _ = handle.cmd.send(Command::Disconnect { player_id, conn_id }).await;
     writer.abort();
 }

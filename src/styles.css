@@ -639,8 +639,14 @@ body {
 }
 .online-leave {
   margin-left: auto;
+  color: #fec2c8;
+  border-color: rgba(226, 85, 99, 0.5);
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(4px);
+}
+.online-leave:hover {
+  background: rgba(226, 85, 99, 0.15);
+  border-color: var(--bad);
 }
 .waiting-pill {
   background: rgba(15, 23, 42, 0.85);
@@ -698,10 +704,12 @@ body {
 .round-delta.bad { color: var(--bad); }
 .round-crown { flex: 0 0 auto; font-size: 0.9rem; line-height: 1; }
 /* Round countdown floated center-top so the time to the next round reads big
-   and prominent, separate from the right-hand HUD. */
+   and prominent, separate from the right-hand HUD. Sits below the feedback
+   banner (top: 72px), which is shown over the same intermission, so the two
+   stack instead of overlapping. */
 .round-timer {
   position: fixed;
-  top: 72px;
+  top: 140px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;

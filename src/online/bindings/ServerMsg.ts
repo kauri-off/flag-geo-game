@@ -14,4 +14,4 @@ export type ServerMsg = { "type": "welcome", playerId: string, room: RoomInfo, p
  * Pause before the next round (or final results) begins, in ms; the
  * client counts it down so players see the cooldown.
  */
-intermissionMs: number, } | { "type": "matchResult", standings: Array<FinalStanding>, winnerId: string | null, } | { "type": "chat", playerId: string, nickname: string, text: string, } | { "type": "error", code: string, message: string, } | { "type": "pong" };
+intermissionMs: number, } | { "type": "matchResult", standings: Array<FinalStanding>, winnerId: string | null, } | { "type": "matchAborted" } | { "type": "chat", playerId: string, nickname: string, text: string, } | { "type": "error", code: string, message: string, } | { "type": "pong" };

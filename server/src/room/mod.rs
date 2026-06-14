@@ -35,12 +35,15 @@ pub enum Command {
         avatar: String,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
-    /// A websocket attached (or reattached) to a reserved player.
-    Connect { player_id: String, sink: Sink },
+    /// A websocket attached (or reattached) to a reserved player. `conn_id`
+    /// uniquely identifies this socket so a later `Disconnect` from a superseded
+    /// connection can be ignored.
+    Connect { player_id: String, conn_id: u64, sink: Sink },
     /// A websocket message from a player.
     Msg { player_id: String, msg: ClientMsg },
-    /// A websocket closed.
-    Disconnect { player_id: String },
+    /// A websocket closed. Ignored unless `conn_id` matches the player's current
+    /// connection (guards against stale closes racing a reconnect).
+    Disconnect { player_id: String, conn_id: u64 },
 }
 
 #[derive(Clone, Default)]
@@ -230,4 +233,11 @@ static PLAYER_SEQ: AtomicU64 = AtomicU64::new(1);
 pub fn next_player_id() -> String {
     let n = PLAYER_SEQ.fetch_add(1, Ordering::Relaxed);
     format!("p{}-{}", n, uuid::Uuid::new_v4().simple())
+}
+
+// Monotonic per-connection id. Lets the actor tell a fresh socket apart from a
+// stale one for the same player, so a late `Disconnect` can't clobber a reconnect.
+static CONN_SEQ: AtomicU64 = AtomicU64::new(1);
+pub fn next_conn_id() -> u64 {
+    CONN_SEQ.fetch_add(1, Ordering::Relaxed)
 }

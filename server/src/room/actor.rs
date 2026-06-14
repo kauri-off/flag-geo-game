@@ -48,6 +48,9 @@ struct Slot {
     score: i32,
     correct: u32,
     connected: bool,
+    /// Id of the socket that currently owns this slot; `0` while unconnected. Used
+    /// to ignore a `Disconnect` from a stale connection that a reconnect replaced.
+    conn_id: u64,
     sink: Option<Sink>,
     /// This round's finalised answer (None until they submit).
     answer: Option<RoundPlayerResult>,
@@ -119,6 +122,7 @@ impl Room {
             score: 0,
             correct: 0,
             connected: false,
+            conn_id: 0,
             sink: None,
             answer: None,
         };
@@ -186,8 +190,8 @@ impl Room {
                 let res = self.reserve(player_id, uid, nickname, avatar);
                 let _ = reply.send(res);
             }
-            Command::Connect { player_id, sink } => self.connect(player_id, sink),
-            Command::Disconnect { player_id } => self.disconnect(&player_id),
+            Command::Connect { player_id, conn_id, sink } => self.connect(player_id, conn_id, sink),
+            Command::Disconnect { player_id, conn_id } => self.disconnect(&player_id, conn_id),
             Command::Msg { player_id, msg } => self.on_msg(player_id, msg).await,
         }
     }
@@ -225,18 +229,20 @@ impl Room {
             score: 0,
             correct: 0,
             connected: false,
+            conn_id: 0,
             sink: None,
             answer: None,
         });
         Ok(())
     }
 
-    fn connect(&mut self, id: String, sink: Sink) {
+    fn connect(&mut self, id: String, conn_id: u64, sink: Sink) {
         let Some(idx) = self.players.iter().position(|p| p.id == id) else {
             let _ = sink.try_send(Arc::new(ServerMsg::error("BAD_TOKEN", "unknown player slot")));
             return;
         };
         self.players[idx].connected = true;
+        self.players[idx].conn_id = conn_id;
         self.players[idx].sink = Some(sink.clone());
 
         // Welcome the (re)connecting socket with the full room state.
@@ -253,15 +259,23 @@ impl Room {
         self.broadcast_except(&id, ServerMsg::PlayerJoined { player: view });
     }
 
-    fn disconnect(&mut self, id: &str) {
+    /// A socket closed. Ignored unless it's the player's *current* connection, so a
+    /// stale close that races a reconnect can't drop the freshly attached socket.
+    fn disconnect(&mut self, id: &str, conn_id: u64) {
+        let Some(idx) = self.players.iter().position(|p| p.id == id) else {
+            return; // already gone (e.g. an explicit leave removed the slot)
+        };
+        if self.players[idx].conn_id != conn_id {
+            return; // superseded by a newer connection; this close is stale
+        }
         if self.phase.is_running() {
             // Keep the slot during a match; just mark it offline (reconnect grace).
-            if let Some(p) = self.players.iter_mut().find(|p| p.id == id) {
-                p.connected = false;
-                p.sink = None;
-                let view = p.view();
-                self.broadcast(ServerMsg::PlayerJoined { player: view });
-            }
+            self.players[idx].connected = false;
+            self.players[idx].sink = None;
+            let view = self.players[idx].view();
+            self.broadcast(ServerMsg::PlayerJoined { player: view });
+            // The round may have been waiting only on the player who just dropped.
+            self.maybe_end_round();
         } else {
             self.players.retain(|p| p.id != id);
             self.broadcast(ServerMsg::PlayerLeft { player_id: id.to_string() });
@@ -269,11 +283,64 @@ impl Room {
         }
     }
 
+    /// An explicit `LeaveRoom`: a deliberate departure, so the slot is removed in
+    /// every phase (unlike a transient `disconnect`, which keeps it for reconnect).
+    fn leave(&mut self, id: &str) {
+        if !self.players.iter().any(|p| p.id == id) {
+            return;
+        }
+        self.players.retain(|p| p.id != id);
+        self.broadcast(ServerMsg::PlayerLeft { player_id: id.to_string() });
+        self.reassign_host_if_needed();
+        // A 1-on-1 match can't continue once someone leaves; otherwise settle the
+        // round if the leaver was the last player it was waiting on.
+        if self.abort_if_too_few() {
+            return;
+        }
+        self.maybe_end_round();
+    }
+
+    /// Abort a running match when fewer than two players remain — a multiplayer
+    /// match is meaningless solo. Returns true if it aborted.
+    fn abort_if_too_few(&mut self) -> bool {
+        if self.phase.is_running() && self.players.len() < 2 {
+            self.abort_match();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn abort_match(&mut self) {
+        self.phase = Phase::Lobby;
+        self.sequence.clear();
+        self.round_index = 0;
+        self.pending_arm = None; // a still-armed deadline timer no-ops in Lobby
+        for p in &mut self.players {
+            p.score = 0;
+            p.correct = 0;
+            p.answer = None;
+        }
+        self.broadcast(ServerMsg::MatchAborted);
+        self.broadcast_scoreboard();
+    }
+
+    /// End the current round early once every connected player has answered. Safe to
+    /// call from any path that removes a player or records an answer.
+    fn maybe_end_round(&mut self) {
+        if self.phase == Phase::InRound
+            && !self.players.is_empty()
+            && !self.players.iter().any(|p| p.connected && p.answer.is_none())
+        {
+            self.end_round();
+        }
+    }
+
     async fn on_msg(&mut self, id: String, msg: ClientMsg) {
         match msg {
             ClientMsg::Hello { .. } => {} // handled during the WS handshake, ignored here
             ClientMsg::Ping => self.send_to(&id, ServerMsg::Pong),
-            ClientMsg::LeaveRoom => self.disconnect(&id),
+            ClientMsg::LeaveRoom => self.leave(&id),
             ClientMsg::SetProfile { nickname, avatar } => self.set_profile(&id, nickname, avatar),
             ClientMsg::UpdateConfig { config } => self.update_config(&id, config),
             ClientMsg::TransferHost { player_id } => self.transfer_host(&id, &player_id),
@@ -363,13 +430,12 @@ impl Room {
         self.broadcast(ServerMsg::PlayerLeft { player_id: target.to_string() });
         self.reassign_host_if_needed();
 
-        // If a round was waiting only on the kicked player, settle it now.
-        if self.phase == Phase::InRound {
-            let pending = self.players.iter().any(|p| p.connected && p.answer.is_none());
-            if !pending && !self.players.is_empty() {
-                self.end_round();
-            }
+        // Abort if too few players are left; otherwise settle the round if it was
+        // only waiting on the kicked player.
+        if self.abort_if_too_few() {
+            return;
         }
+        self.maybe_end_round();
     }
 
     fn on_chat(&mut self, id: &str, text: String) {
@@ -489,13 +555,7 @@ impl Room {
         self.broadcast_scoreboard();
 
         // End early once every connected player has answered.
-        let pending = self
-            .players
-            .iter()
-            .any(|p| p.connected && p.answer.is_none());
-        if !pending {
-            self.end_round();
-        }
+        self.maybe_end_round();
     }
 
     fn end_round(&mut self) {

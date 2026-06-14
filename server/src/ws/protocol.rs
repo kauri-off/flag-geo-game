@@ -9,7 +9,7 @@ use ts_rs::TS;
 
 /// Bumped on any breaking protocol change; surfaced via `/version` + `/info` so a
 /// mismatched client can refuse to connect.
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "bindings/")]
@@ -162,6 +162,9 @@ pub enum ServerMsg {
         intermission_ms: u32,
     },
     MatchResult { standings: Vec<FinalStanding>, winner_id: Option<String> },
+    /// The match was stopped before finishing because too few players remained;
+    /// clients return to the lobby. No result is recorded.
+    MatchAborted,
     Chat { player_id: String, nickname: String, text: String },
     Error { code: String, message: String },
     Pong,
