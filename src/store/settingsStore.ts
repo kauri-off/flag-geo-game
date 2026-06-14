@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Language } from '../i18n';
 import type { SizeBucket } from '../data/countries';
+import { DEFAULT_DIFFICULTY } from '../game/difficulty';
 import { DEFAULT_MODE, type GameModeId } from '../game/modes';
 
 export type ConfirmMode = 'spacebar' | 'click';
@@ -45,9 +46,7 @@ export interface SettingsState {
   setLanguage: (lang: Language) => void;
   setShowLabels: (v: boolean) => void;
   setConfirmMode: (m: ConfirmMode) => void;
-  toggleContinent: (continent: string) => void;
-  setSize: (size: SizeBucket | 'all') => void;
-  setScope: (scope: 'un' | 'all') => void;
+  setDifficulty: (difficulty: DifficultyFilter) => void;
   setSoundOn: (v: boolean) => void;
   setVolume: (v: number) => void;
   setShowPickedFlag: (v: boolean) => void;
@@ -62,7 +61,7 @@ export const useSettings = create<SettingsState>()(
       language: 'en',
       showLabels: true,
       confirmMode: 'click',
-      difficulty: { continents: [], size: 'all', scope: 'all' },
+      difficulty: DEFAULT_DIFFICULTY,
       soundOn: true,
       volume: 80,
       showPickedFlag: false,
@@ -73,22 +72,7 @@ export const useSettings = create<SettingsState>()(
       setLanguage: (language) => set({ language }),
       setShowLabels: (showLabels) => set({ showLabels }),
       setConfirmMode: (confirmMode) => set({ confirmMode }),
-      toggleContinent: (continent) =>
-        set((s) => {
-          const has = s.difficulty.continents.includes(continent);
-          return {
-            difficulty: {
-              ...s.difficulty,
-              continents: has
-                ? s.difficulty.continents.filter((c) => c !== continent)
-                : [...s.difficulty.continents, continent],
-            },
-          };
-        }),
-      setSize: (size) =>
-        set((s) => ({ difficulty: { ...s.difficulty, size } })),
-      setScope: (scope) =>
-        set((s) => ({ difficulty: { ...s.difficulty, scope } })),
+      setDifficulty: (difficulty) => set({ difficulty }),
       setSoundOn: (soundOn) => set({ soundOn }),
       setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, Math.round(volume))) }),
       setShowPickedFlag: (showPickedFlag) => set({ showPickedFlag }),

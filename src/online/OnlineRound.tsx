@@ -29,8 +29,9 @@ function IntermissionPill() {
   const isLast = round ? round.index + 1 >= round.total : false;
   const label = isLast ? t('resultsIn', language) : t('nextRoundIn', language);
   return (
-    <div className="waiting-pill cooldown">
-      {label} {secs}s
+    <div className="round-timer">
+      <span className="round-timer-label">{label}</span>
+      <span className="round-timer-secs">{secs}s</span>
     </div>
   );
 }
@@ -45,6 +46,7 @@ export function OnlineRound() {
   return (
     <>
       <RoundBoard />
+      {phase === 'intermission' && <IntermissionPill />}
       <div className="online-hud">
         {round && (
           <div className="online-hud-round">
@@ -54,13 +56,8 @@ export function OnlineRound() {
             </span>
           </div>
         )}
-        {phase === 'intermission' ? (
-          <IntermissionPill />
-        ) : (
-          answered &&
-          status === 'guessing' && (
-            <div className="waiting-pill">{t('waitingForResult', language)}</div>
-          )
+        {phase !== 'intermission' && answered && status === 'guessing' && (
+          <div className="waiting-pill">{t('waitingForResult', language)}</div>
         )}
         <Scoreboard />
       </div>

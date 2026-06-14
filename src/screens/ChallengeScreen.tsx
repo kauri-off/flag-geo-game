@@ -8,7 +8,6 @@ import { RoundBoard } from '../components/RoundBoard';
 import { StatsRow } from '../components/StatsRow';
 import { useGame } from '../store/gameStore';
 import { useSettings, type DifficultyFilter } from '../store/settingsStore';
-import { CONTINENTS, type SizeBucket } from '../data/countries';
 import {
   DEFAULT_CHALLENGE,
   ROUND_PRESETS,
@@ -16,16 +15,10 @@ import {
   PERFECT_SEC,
   analyzeChallenge,
 } from '../game/challenge';
+import { DifficultyPicker } from '../components/DifficultyPicker';
 import { statsFromRounds } from '../game/stats';
 import type { Stats } from '../game/types';
 import { t } from '../i18n';
-
-const SIZES: { value: SizeBucket | 'all'; key: 'sizeAll' | 'sizeSmall' | 'sizeMedium' | 'sizeLarge' }[] = [
-  { value: 'all', key: 'sizeAll' },
-  { value: 'small', key: 'sizeSmall' },
-  { value: 'medium', key: 'sizeMedium' },
-  { value: 'large', key: 'sizeLarge' },
-];
 
 export function ChallengeScreen() {
   const challenge = useGame((s) => s.challenge);
@@ -44,14 +37,6 @@ function ChallengeSetup() {
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_CHALLENGE.timeLimitSec);
   const [attempts, setAttempts] = useState(DEFAULT_CHALLENGE.attempts);
   const [difficulty, setDifficulty] = useState<DifficultyFilter>(DEFAULT_CHALLENGE.difficulty);
-
-  const toggleContinent = (c: string) =>
-    setDifficulty((d) => ({
-      ...d,
-      continents: d.continents.includes(c)
-        ? d.continents.filter((x) => x !== c)
-        : [...d.continents, c],
-    }));
 
   const start = () =>
     startChallenge({ rounds: Math.max(1, rounds), timeLimitSec, attempts, difficulty });
@@ -117,38 +102,7 @@ function ChallengeSetup() {
         <p className="muted scoring-note">{t('attemptsNote', lang)}</p>
       </section>
 
-      <section className="settings-group">
-        <h3>{t('difficulty', lang)} · {t('continents', lang)}</h3>
-        <div className="chip-row">
-          {CONTINENTS.map((c) => (
-            <button
-              key={c}
-              className={`chip ${difficulty.continents.includes(c) ? 'on' : ''}`}
-              onClick={() => toggleContinent(c)}
-            >
-              {c}
-            </button>
-          ))}
-          {difficulty.continents.length === 0 && (
-            <span className="muted">({t('all', lang)})</span>
-          )}
-        </div>
-      </section>
-
-      <section className="settings-group">
-        <h3>{t('difficulty', lang)} · {t('size', lang)}</h3>
-        <div className="chip-row">
-          {SIZES.map((sz) => (
-            <button
-              key={sz.value}
-              className={`chip ${difficulty.size === sz.value ? 'on' : ''}`}
-              onClick={() => setDifficulty((d) => ({ ...d, size: sz.value }))}
-            >
-              {t(sz.key, lang)}
-            </button>
-          ))}
-        </div>
-      </section>
+      <DifficultyPicker value={difficulty} lang={lang} onChange={setDifficulty} />
 
       <div className="controls" style={{ justifyContent: 'flex-start' }}>
         <button className="btn primary big" onClick={start}>

@@ -2,36 +2,10 @@
 // difficulty filter restarts the round pool on next round.
 import { useSettings } from '../store/settingsStore';
 import { useGame } from '../store/gameStore';
-import { CONTINENTS, countries, type SizeBucket } from '../data/countries';
-import { mapIds } from '../map/world';
 import { LANGUAGES, t, type Language } from '../i18n';
 import { GAME_MODES, type GameModeId } from '../game/modes';
+import { DifficultyPicker } from '../components/DifficultyPicker';
 import { playSelect } from '../game/sound';
-
-const SIZES: { value: SizeBucket | 'all'; key: 'sizeAll' | 'sizeSmall' | 'sizeMedium' | 'sizeLarge' }[] = [
-  { value: 'all', key: 'sizeAll' },
-  { value: 'small', key: 'sizeSmall' },
-  { value: 'medium', key: 'sizeMedium' },
-  { value: 'large', key: 'sizeLarge' },
-];
-
-// Counts shown on the "Countries" scope chips. Computed once from the countries
-// actually present on the map.
-const onMapCountries = countries.filter((c) => mapIds.has(c.id));
-const SCOPES: {
-  value: 'all' | 'un';
-  key: 'scopeAll' | 'scopeUn';
-  desc: 'scopeAllDesc' | 'scopeUnDesc';
-  count: number;
-}[] = [
-  { value: 'all', key: 'scopeAll', desc: 'scopeAllDesc', count: onMapCountries.length },
-  {
-    value: 'un',
-    key: 'scopeUn',
-    desc: 'scopeUnDesc',
-    count: onMapCountries.filter((c) => c.unMember).length,
-  },
-];
 
 export function SettingsScreen() {
   const s = useSettings();
@@ -180,63 +154,14 @@ export function SettingsScreen() {
         </div>
       </section>
 
-      <section className="settings-group">
-        <h3>{t('difficulty', lang)} · {t('scope', lang)}</h3>
-        <div className="chip-row">
-          {SCOPES.map((sc) => (
-            <button
-              key={sc.value}
-              className={`chip ${(s.difficulty.scope ?? 'all') === sc.value ? 'on' : ''}`}
-              title={t(sc.desc, lang)}
-              onClick={() => {
-                s.setScope(sc.value);
-                restart();
-              }}
-            >
-              {t(sc.key, lang)} ({sc.count})
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-group">
-        <h3>{t('difficulty', lang)} · {t('continents', lang)}</h3>
-        <div className="chip-row">
-          {CONTINENTS.map((c) => (
-            <button
-              key={c}
-              className={`chip ${s.difficulty.continents.includes(c) ? 'on' : ''}`}
-              onClick={() => {
-                s.toggleContinent(c);
-                restart();
-              }}
-            >
-              {c}
-            </button>
-          ))}
-          {s.difficulty.continents.length === 0 && (
-            <span className="muted">({t('all', lang)})</span>
-          )}
-        </div>
-      </section>
-
-      <section className="settings-group">
-        <h3>{t('difficulty', lang)} · {t('size', lang)}</h3>
-        <div className="chip-row">
-          {SIZES.map((sz) => (
-            <button
-              key={sz.value}
-              className={`chip ${s.difficulty.size === sz.value ? 'on' : ''}`}
-              onClick={() => {
-                s.setSize(sz.value);
-                restart();
-              }}
-            >
-              {t(sz.key, lang)}
-            </button>
-          ))}
-        </div>
-      </section>
+      <DifficultyPicker
+        value={s.difficulty}
+        lang={lang}
+        onChange={(d) => {
+          s.setDifficulty(d);
+          restart();
+        }}
+      />
     </div>
   );
 }

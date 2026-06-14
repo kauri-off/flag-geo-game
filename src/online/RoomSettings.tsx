@@ -1,8 +1,10 @@
 // Room match settings (rounds, time per answer, country scope). Rendered inside
 // the lobby: editable by the host, read-only for everyone else. Every change is
 // pushed to the server, which broadcasts it so all players see the live config.
-import { useSettings } from '../store/settingsStore';
+import { useSettings, type DifficultyFilter } from '../store/settingsStore';
 import { t } from '../i18n';
+import { DEFAULT_DIFFICULTY } from '../game/difficulty';
+import { DifficultyPicker } from '../components/DifficultyPicker';
 import type { RoomConfig } from './protocol';
 
 const ROUND_PRESETS = [5, 10, 20] as const;
@@ -12,7 +14,7 @@ export const DEFAULT_CONFIG: RoomConfig = {
   rounds: 10,
   timeLimitSec: 10,
   attempts: 1,
-  difficulty: { continents: [], size: 'all', scope: 'all' },
+  difficulty: DEFAULT_DIFFICULTY,
 };
 
 export function RoomSettings({
@@ -25,21 +27,26 @@ export function RoomSettings({
   onChange: (config: RoomConfig) => void;
 }) {
   const language = useSettings((s) => s.language);
-  const unOnly = config.difficulty.scope === 'un';
+  const { continents, size, scope } = config.difficulty;
 
   const setRounds = (rounds: number) => onChange({ ...config, rounds });
   const setTimeLimit = (timeLimitSec: number) => onChange({ ...config, timeLimitSec });
-  const setUnOnly = (un: boolean) =>
-    onChange({ ...config, difficulty: { ...config.difficulty, scope: un ? 'un' : 'all' } });
 
   // Non-host players get a compact, read-only summary of the live config.
   if (!editable) {
+    const filters = [
+      continents.length ? continents.join(', ') : null,
+      size !== 'all' ? t(`size${size[0].toUpperCase()}${size.slice(1)}` as 'sizeSmall', language) : null,
+      scope === 'un' ? t('scopeUn', language) : null,
+    ].filter(Boolean);
     return (
       <div className="room-settings readonly">
         <span className="muted">
           {config.rounds} {t('rounds', language).toLowerCase()} ·{' '}
           {config.timeLimitSec === 0 ? t('noLimit', language) : `${config.timeLimitSec}s`}
-          {unOnly && <> · {t('scopeUn', language)}</>}
+          {filters.map((f) => (
+            <span key={f as string}> · {f}</span>
+          ))}
         </span>
       </div>
     );
@@ -71,10 +78,11 @@ export function RoomSettings({
           ))}
         </div>
       </div>
-      <label className="switch">
-        <input type="checkbox" checked={unOnly} onChange={(e) => setUnOnly(e.target.checked)} />
-        <span>{t('scopeUn', language)}</span>
-      </label>
+      <DifficultyPicker
+        value={config.difficulty as DifficultyFilter}
+        lang={language}
+        onChange={(d) => onChange({ ...config, difficulty: d })}
+      />
     </div>
   );
 }

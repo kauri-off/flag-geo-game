@@ -3,6 +3,7 @@
 // points that decay the longer it takes. Kept as pure data + functions so the
 // game store stays renderer-agnostic and the scoring is easy to test/tweak.
 import type { DifficultyFilter } from '../store/settingsStore';
+import { DEFAULT_DIFFICULTY } from './difficulty';
 
 export interface ChallengeConfig {
   /** Number of rounds in the run. */
@@ -85,7 +86,7 @@ export const DEFAULT_CHALLENGE: ChallengeConfig = {
   rounds: 20,
   timeLimitSec: 10,
   attempts: 1,
-  difficulty: { continents: [], size: 'all' },
+  difficulty: DEFAULT_DIFFICULTY,
 };
 
 /** Preset round counts offered in the setup form. */
