@@ -274,6 +274,11 @@ impl Room {
             self.players[idx].sink = None;
             let view = self.players[idx].view();
             self.broadcast(ServerMsg::PlayerJoined { player: view });
+            // A dropped socket (e.g. an F5 refresh) is still a departure: abort the
+            // match if it leaves fewer than two players actually present to play.
+            if self.abort_if_too_few() {
+                return;
+            }
             // The round may have been waiting only on the player who just dropped.
             self.maybe_end_round();
         } else {
@@ -300,10 +305,12 @@ impl Room {
         self.maybe_end_round();
     }
 
-    /// Abort a running match when fewer than two players remain — a multiplayer
-    /// match is meaningless solo. Returns true if it aborted.
+    /// Abort a running match when fewer than two players remain *connected* — a
+    /// multiplayer match is meaningless solo. Counts connected players rather than
+    /// slots, since a disconnected slot is kept around for reconnect grace but can't
+    /// keep playing. Returns true if it aborted.
     fn abort_if_too_few(&mut self) -> bool {
-        if self.phase.is_running() && self.players.len() < 2 {
+        if self.phase.is_running() && self.players.iter().filter(|p| p.connected).count() < 2 {
             self.abort_match();
             true
         } else {
