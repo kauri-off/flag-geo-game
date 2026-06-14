@@ -50,7 +50,7 @@ export function Scoreboard() {
               <span className="rank">{i + 1}</span>
               {r.player && <Flag alpha2={r.player.avatar} className="standing-flag" />}
               <span className="standing-name">
-                {r.player?.nickname ?? '—'}
+                <span className="standing-nick">{r.player?.nickname ?? '—'}</span>
                 {showRound && r.playerId === winnerId && <span className="round-crown">👑</span>}
               </span>
               {showRound && res && (

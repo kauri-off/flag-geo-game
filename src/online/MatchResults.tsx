@@ -28,7 +28,7 @@ export function MatchResults() {
             <span className="rank">{i + 1}</span>
             <Flag alpha2={s.avatar} className="standing-flag" />
             <span className="standing-name">
-              {s.nickname}
+              <span className="standing-nick">{s.nickname}</span>
               {s.playerId === winnerId && <span className="badge">🏆 {t('winner', language)}</span>}
             </span>
             <span className="standing-detail muted">

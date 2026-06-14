@@ -26,7 +26,7 @@ export function Leaderboard() {
             <li key={`${row.nickname}-${row.playedAt}-${i}`} className="leaderboard-row">
               <span className="rank">{i + 1}</span>
               <Flag alpha2={row.avatar} className="standing-flag" />
-              <span className="standing-name">{row.nickname}</span>
+              <span className="standing-name"><span className="standing-nick">{row.nickname}</span></span>
               <span className="standing-detail muted">
                 {row.games} {plural('games', row.games, language)}
               </span>

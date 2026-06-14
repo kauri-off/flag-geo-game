@@ -559,6 +559,7 @@ body {
 .player-flag { font-size: 1.5rem; border-radius: 3px; }
 .player-name { font-weight: 600; }
 .badge {
+  flex: 0 0 auto; white-space: nowrap;
   font-size: 0.72rem; padding: 2px 7px; border-radius: 999px;
   background: var(--border); color: var(--text); text-transform: uppercase; letter-spacing: 0.5px;
 }
@@ -636,17 +637,26 @@ body {
   padding: 6px 8px; border-radius: 6px; border: 1px solid transparent;
 }
 .standing-row.self { background: var(--panel-2); }
-.standing-row.answered .standing-name::after { content: ' ✓'; color: var(--ok); }
+.standing-row.answered .standing-nick::after { content: ' ✓'; color: var(--ok); }
 .standing-row.winner { background: rgba(63, 178, 127, 0.15); border-color: var(--ok); }
-.rank { width: 1.4em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.standing-flag { font-size: 1.2rem; border-radius: 2px; }
-.standing-name { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.standing-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+.rank { flex: 0 0 auto; width: 1.4em; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Fixed 4:3 chip so non-rectangular flags (e.g. Nepal) sit in a frame and align
+   with rectangular ones instead of rendering as a tiny floating shape. */
+.standing-flag {
+  flex: 0 0 auto;
+  width: 1.6rem; height: 1.2rem;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.standing-name { flex: 1; min-width: 0; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.standing-nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.standing-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 700; }
 .standing-detail { font-size: 0.85rem; }
-.round-delta { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.9rem; }
+.round-delta { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.9rem; }
 .round-delta.ok { color: var(--ok); }
 .round-delta.bad { color: var(--bad); }
-.round-crown { font-size: 0.9rem; }
+.round-crown { flex: 0 0 auto; font-size: 0.9rem; line-height: 1; }
 .waiting-pill.cooldown { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* results */
