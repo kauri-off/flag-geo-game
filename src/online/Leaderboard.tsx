@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { Flag } from '../components/Flag';
 import { useOnline } from '../store/onlineStore';
 import { useSettings } from '../store/settingsStore';
-import { t } from '../i18n';
+import { t, plural } from '../i18n';
 
 export function Leaderboard() {
   const language = useSettings((s) => s.language);
@@ -28,7 +28,7 @@ export function Leaderboard() {
               <Flag alpha2={row.avatar} className="standing-flag" />
               <span className="standing-name">{row.nickname}</span>
               <span className="standing-detail muted">
-                {row.games} {t('games', language)}
+                {row.games} {plural('games', row.games, language)}
               </span>
               <span className="standing-score">{row.score.toLocaleString()}</span>
             </li>

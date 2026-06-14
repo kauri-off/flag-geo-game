@@ -4,7 +4,7 @@
 // asks for a name/string by language code.
 import en from './locales/en.json';
 import ru from './locales/ru.json';
-import { ui, type UiKey } from './ui';
+import { ui, plurals, type UiKey, type PluralKey } from './ui';
 
 export type Language = 'en' | 'ru';
 
@@ -31,4 +31,20 @@ export function countryName(
 /** Localised UI string. */
 export function t(key: UiKey, lang: Language): string {
   return ui[lang][key] ?? ui.en[key] ?? key;
+}
+
+const pluralRules: Record<Language, Intl.PluralRules> = {
+  en: new Intl.PluralRules('en'),
+  ru: new Intl.PluralRules('ru'),
+};
+
+/**
+ * The correct plural form of a word for `count` in the given language, e.g.
+ * plural('games', 1, 'ru') → 'игра', plural('games', 5, 'ru') → 'игр'. Falls
+ * back to the 'other' form, then English, when a category is missing.
+ */
+export function plural(key: PluralKey, count: number, lang: Language): string {
+  const forms = plurals[key][lang];
+  const category = pluralRules[lang].select(count);
+  return forms[category] ?? forms.other ?? plurals[key].en.other ?? key;
 }

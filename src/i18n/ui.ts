@@ -122,7 +122,6 @@ const en = {
   rematch: 'Back to lobby',
   leaderboard: 'Leaderboard',
   leaderboardEmpty: 'No matches played yet.',
-  games: 'games',
   nextRoundIn: 'Next round in',
   resultsIn: 'Results in',
   roomSettings: 'Match settings',
@@ -133,6 +132,20 @@ const en = {
 } as const;
 
 export type UiKey = keyof typeof en;
+
+// Plural forms keyed by the CLDR categories that `Intl.PluralRules` returns for
+// each language. English uses one/other; Russian uses one/few/many (e.g.
+// 1 игра, 2 игры, 5 игр). Look up via `plural()` in ./index.
+type PluralForms = Partial<Record<Intl.LDMLPluralRule, string>>;
+
+export const plurals = {
+  games: {
+    en: { one: 'game', other: 'games' },
+    ru: { one: 'игра', few: 'игры', many: 'игр' },
+  },
+} satisfies Record<string, Record<Language, PluralForms>>;
+
+export type PluralKey = keyof typeof plurals;
 
 const ru: Record<UiKey, string> = {
   appTitle: 'Флаг Гео',
@@ -253,7 +266,6 @@ const ru: Record<UiKey, string> = {
   rematch: 'Назад в лобби',
   leaderboard: 'Таблица лидеров',
   leaderboardEmpty: 'Пока нет сыгранных матчей.',
-  games: 'игр',
   nextRoundIn: 'Следующий раунд через',
   resultsIn: 'Итоги через',
   roomSettings: 'Настройки матча',
