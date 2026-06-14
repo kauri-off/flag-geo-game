@@ -4,6 +4,8 @@ dist-ssr
 *.local
 .DS_Store
 node_modules/.tmp
+deploy.ps1
+/build
 
 # Rust server build + local data
 server/target

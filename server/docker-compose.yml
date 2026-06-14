@@ -1,0 +1,22 @@
+# Prebuilt deploy: the image is built locally and `docker load`-ed onto the
+# server by ../deploy.ps1, so there is no `build:` section here — compose only
+# runs the already-loaded image.
+services:
+  flag-geo-server:
+    image: flag-geo-server:latest
+    container_name: flag-geo-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # The DB lives on the named volume mounted at /data (see Dockerfile).
+      DB_PATH: /data/flag-geo.db
+    # Bound to localhost: terminate TLS / upgrade WS at a reverse proxy (see
+    # server/README.md). Drop the 127.0.0.1 prefix to expose it directly.
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    volumes:
+      - flag-geo-data:/data
+
+volumes:
+  flag-geo-data:
