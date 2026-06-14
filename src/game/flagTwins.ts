@@ -9,17 +9,15 @@
 //     never shown. They're still listed here so sameFlag() stays correct.
 //
 //  2. Perceptual near-twins that flag-icons renders DIFFERENTLY but a player
-//     still can't tell apart (Romania/Chad, Indonesia/Monaco). Artwork hashing
-//     can't catch these, so they're maintained by hand below. Both members stay
-//     guessable; guessing either one counts as correct.
+//     still can't tell apart (Indonesia/Monaco). Artwork hashing can't catch
+//     these, so they're maintained by hand below. Both members stay guessable;
+//     guessing either one counts as correct.
 //
 // Keyed by numeric ISO 3166-1 codes (matching CountryMeta.id):
-//   642 Romania   / 148 Chad   — blue-yellow-red vertical tricolor
 //   360 Indonesia / 492 Monaco — red-white horizontal bicolor
 import { ARTWORK_TWIN_GROUPS, NON_GUESSABLE_TWIN_IDS } from './flagTwins.generated';
 
 const MANUAL_TWIN_GROUPS: string[][] = [
-  ['642', '148'],
   ['360', '492'],
 ];
 

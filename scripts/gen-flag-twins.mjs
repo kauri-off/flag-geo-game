@@ -19,9 +19,9 @@
 //   node scripts/gen-flag-twins.mjs          regenerate the module
 //   node scripts/gen-flag-twins.mjs --check  fail (exit 1) if it's stale
 //
-// Perceptual near-twins that flag-icons renders DIFFERENTLY (Romania/Chad,
-// Indonesia/Monaco) are not caught here by design — they live as a small manual
-// supplement in flagTwins.ts.
+// Perceptual near-twins that flag-icons renders DIFFERENTLY (Indonesia/Monaco)
+// are not caught here by design — they live as a small manual supplement in
+// flagTwins.ts.
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';

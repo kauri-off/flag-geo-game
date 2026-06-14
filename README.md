@@ -12,8 +12,8 @@ mode lets you race other players live against a self-hosted dedicated server.
 - Rounds are timed, and your accuracy and best/average times are tracked per
   session.
 - Every round is logged to a persistent **History** screen.
-- Indistinguishable flags are treated fairly: guessing Chad when shown Romania
-  (or Indonesia/Monaco) counts as correct — see `src/game/flagTwins.ts`.
+- Indistinguishable flags are treated fairly: guessing Monaco when shown
+  Indonesia counts as correct — see `src/game/flagTwins.ts`.
 
 ### Modes
 
