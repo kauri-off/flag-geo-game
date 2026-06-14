@@ -469,7 +469,11 @@ impl Room {
             index: self.round_index as u32,
             target_id,
             results,
+            intermission_ms: self.cfg.round_intermission_ms as u32,
         });
+        // Push the new cumulative totals so the scoreboard updates with the
+        // round result instead of jumping silently at the next round start.
+        self.broadcast_scoreboard();
         self.phase = Phase::Intermission;
         self.pending_arm = Some(Duration::from_millis(self.cfg.round_intermission_ms));
     }

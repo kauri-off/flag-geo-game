@@ -22,10 +22,13 @@ pub struct Db {
 pub struct LeaderboardRow {
     pub nickname: String,
     pub avatar: String,
+    /// Cumulative score across every match this name has played.
     pub score: i32,
     pub correct: i32,
     pub rounds: i32,
-    /// Epoch millis; f64 so it maps to a JS `number` (out of i32 range).
+    /// Number of matches this name has finished.
+    pub games: i32,
+    /// Epoch millis of the most recent match; f64 so it maps to a JS `number`.
     pub played_at: f64,
 }
 
@@ -85,18 +88,26 @@ impl Db {
         }
     }
 
-    /// Each player's best single-match score, highest first (one row per name).
+    /// Each player's cumulative all-time score, highest first (one row per name).
     pub async fn top_leaderboard(&self, limit: u32) -> Result<Vec<LeaderboardRow>, AppError> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || -> rusqlite::Result<Vec<LeaderboardRow>> {
             let c = conn.lock().expect("db mutex poisoned");
-            // Group by name (case-insensitive); with exactly one MAX(score) the
-            // other bare columns are taken from that best-scoring row.
+            // Sum every match for a name (case-insensitive). The avatar is taken
+            // from that name's most recent match so it tracks their latest flag.
             let mut stmt = c.prepare(
-                "SELECT nickname, avatar, MAX(score) AS score, correct, rounds, played_at
-                 FROM results
-                 GROUP BY nickname COLLATE NOCASE
-                 ORDER BY score DESC, played_at ASC LIMIT ?1",
+                "SELECT r.nickname,
+                        (SELECT avatar FROM results r2
+                           WHERE r2.nickname = r.nickname COLLATE NOCASE
+                           ORDER BY r2.played_at DESC LIMIT 1) AS avatar,
+                        SUM(r.score) AS score,
+                        SUM(r.correct) AS correct,
+                        SUM(r.rounds) AS rounds,
+                        COUNT(*) AS games,
+                        MAX(r.played_at) AS played_at
+                 FROM results r
+                 GROUP BY r.nickname COLLATE NOCASE
+                 ORDER BY score DESC, played_at DESC LIMIT ?1",
             )?;
             let rows = stmt
                 .query_map([limit], |r| {
@@ -106,7 +117,8 @@ impl Db {
                         score: r.get(2)?,
                         correct: r.get(3)?,
                         rounds: r.get(4)?,
-                        played_at: r.get::<_, i64>(5)? as f64,
+                        games: r.get(5)?,
+                        played_at: r.get::<_, i64>(6)? as f64,
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;

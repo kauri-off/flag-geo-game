@@ -4,7 +4,7 @@
 import type { RoomConfig, RoomSummary, LeaderboardRow } from './protocol';
 
 /** Protocol version this client speaks; must match the server's `/info`. */
-export const CLIENT_PROTOCOL = 1;
+export const CLIENT_PROTOCOL = 2;
 
 export interface ServerInfo {
   name: string;

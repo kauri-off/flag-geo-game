@@ -9,7 +9,7 @@ use ts_rs::TS;
 
 /// Bumped on any breaking protocol change; surfaced via `/version` + `/info` so a
 /// mismatched client can refuse to connect.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "bindings/")]
@@ -145,7 +145,14 @@ pub enum ServerMsg {
     RoundStart { index: u32, total: u32, alpha2: String, deadline_ms: f64 },
     AnswerAck { round_index: u32, accepted: bool },
     Scoreboard { standings: Vec<Standing> },
-    RoundResult { index: u32, target_id: String, results: Vec<RoundPlayerResult> },
+    RoundResult {
+        index: u32,
+        target_id: String,
+        results: Vec<RoundPlayerResult>,
+        /// Pause before the next round (or final results) begins, in ms; the
+        /// client counts it down so players see the cooldown.
+        intermission_ms: u32,
+    },
     MatchResult { standings: Vec<FinalStanding>, winner_id: Option<String> },
     Chat { player_id: String, nickname: String, text: String },
     Error { code: String, message: String },

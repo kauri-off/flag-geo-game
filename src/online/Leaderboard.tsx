@@ -28,9 +28,9 @@ export function Leaderboard() {
               <Flag alpha2={row.avatar} className="standing-flag" />
               <span className="standing-name">{row.nickname}</span>
               <span className="standing-detail muted">
-                {row.correct}/{row.rounds}
+                {row.games} {t('games', language)}
               </span>
-              <span className="standing-score">{row.score}</span>
+              <span className="standing-score">{row.score.toLocaleString()}</span>
             </li>
           ))}
         </ol>

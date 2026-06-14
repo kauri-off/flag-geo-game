@@ -68,6 +68,8 @@ export interface OnlineState {
   round: { index: number; total: number; alpha2: string; deadlineMs: number } | null;
   standings: Standing[];
   lastResult: RoundResultView | null;
+  /** Epoch ms (local clock) at which the intermission ends, while in one. */
+  intermissionUntil: number | null;
   matchResult: { standings: FinalStanding[]; winnerId: string | null } | null;
 
   // --- actions ---
@@ -113,6 +115,7 @@ export const useOnline = create<OnlineState>()(
       round: null,
       standings: [],
       lastResult: null,
+      intermissionUntil: null,
       matchResult: null,
 
       setServerUrl: (serverUrl) => set({ serverUrl }),
@@ -226,7 +229,14 @@ export const useOnline = create<OnlineState>()(
       // After a finished match the room stays alive; return to its lobby so the
       // host can start again (the server resets scores on the next start).
       backToLobby: () =>
-        set({ phase: 'lobby', matchResult: null, round: null, lastResult: null, countdown: null }),
+        set({
+          phase: 'lobby',
+          matchResult: null,
+          round: null,
+          lastResult: null,
+          intermissionUntil: null,
+          countdown: null,
+        }),
 
       handleServerMsg: (msg) => applyServerMsg(set, get, msg),
     }),
@@ -258,6 +268,7 @@ function clearedRoom(): Partial<OnlineState> {
     round: null,
     standings: [],
     lastResult: null,
+    intermissionUntil: null,
     matchResult: null,
     status: 'idle',
   };
@@ -331,6 +342,7 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
           deadlineMs: msg.deadlineMs,
         },
         lastResult: null,
+        intermissionUntil: null,
       });
       useGame.getState().setOnlineRound({
         index: msg.index,
@@ -348,6 +360,7 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
       set({
         phase: 'intermission',
         lastResult: { index: msg.index, targetId: msg.targetId, results: msg.results },
+        intermissionUntil: Date.now() + msg.intermissionMs,
       });
       const mine = get().selfId
         ? msg.results.find((r) => r.playerId === get().selfId)
@@ -365,6 +378,7 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
         phase: 'finished',
         matchResult: { standings: msg.standings, winnerId: msg.winnerId ?? null },
         round: null,
+        intermissionUntil: null,
       });
       void get().refreshLeaderboard();
       break;
