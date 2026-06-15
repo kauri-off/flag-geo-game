@@ -31,6 +31,7 @@ import {
   streamClose,
   streamConnect,
 } from '../online/eventStream';
+import { lobbyClose, lobbyConnect } from '../online/lobbyStream';
 import {
   toFinalStanding,
   toPlayer,
@@ -108,6 +109,10 @@ export interface OnlineState {
   disconnect: () => void;
   refreshRooms: () => Promise<void>;
   refreshLeaderboard: () => Promise<void>;
+  /** Open the browse-view push stream (live room list + leaderboard). */
+  watchLobby: () => void;
+  /** Close the browse-view push stream. */
+  stopLobbyWatch: () => void;
   createRoom: (config: RoomConfig, roomPassword?: string) => Promise<void>;
   joinRoom: (code: string, roomPassword?: string) => Promise<void>;
   updateConfig: (config: RoomConfig) => void;
@@ -273,6 +278,17 @@ export const useOnline = create<OnlineState>()(
           /* leaderboard is non-critical */
         }
       },
+
+      watchLobby: () => {
+        const { serverUrl, token } = get();
+        if (!token) return;
+        lobbyConnect(normalizeBase(serverUrl), token, {
+          onRooms: (rooms) => set({ rooms }),
+          onLeaderboard: (leaderboard) => set({ leaderboard }),
+        });
+      },
+
+      stopLobbyWatch: () => lobbyClose(),
 
       createRoom: async (config, roomPassword) => {
         const { serverUrl, token } = get();
@@ -539,7 +555,8 @@ function applyServerMsg(set: Set, get: Get, event: ServerEvent) {
         round: null,
         intermissionUntil: null,
       });
-      void get().refreshLeaderboard();
+      // The leaderboard refreshes itself: the server pushes the new standings to
+      // every browse-view watcher over the lobby stream once the match is recorded.
       break;
     }
     case 'matchAborted': {

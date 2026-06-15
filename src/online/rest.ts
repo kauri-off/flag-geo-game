@@ -15,7 +15,7 @@ import { auth, authClient, normalizeBase, roomClient } from './transport';
 export { normalizeBase };
 
 /** Protocol version this client speaks; must match the server's GetInfo. */
-export const CLIENT_PROTOCOL = 5;
+export const CLIENT_PROTOCOL = 6;
 
 export interface ServerInfo {
   name: string;

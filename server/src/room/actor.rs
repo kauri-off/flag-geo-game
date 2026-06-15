@@ -723,6 +723,10 @@ impl Room {
 
         // Persist (fire-and-forget; never blocks the actor on errors).
         self.db.record_match(self.code.clone(), self.config.rounds, standings).await;
+        // The all-time leaderboard just changed; push it to browse-view watchers.
+        if let Some(mgr) = self.mgr.upgrade() {
+            mgr.notify_leaderboard_dirty();
+        }
     }
 
     // ---- helpers ----------------------------------------------------------
@@ -789,13 +793,22 @@ impl Room {
     }
 
     async fn sync_snapshot(&self) {
-        let mut snap = self.snapshot.write().await;
-        snap.host_id = self.host_id.clone();
-        snap.phase = self.phase.as_str().to_string();
-        snap.player_count = self.players.len();
-        snap.connected_count = self.players.iter().filter(|p| p.connected).count();
-        snap.max_players = self.cfg.max_players_per_room;
-        snap.joinable = !self.phase.is_running() && self.players.len() < self.cfg.max_players_per_room;
-        snap.last_activity_ms = now_ms();
+        {
+            let mut snap = self.snapshot.write().await;
+            snap.host_id = self.host_id.clone();
+            snap.phase = self.phase.as_str().to_string();
+            snap.player_count = self.players.len();
+            snap.connected_count = self.players.iter().filter(|p| p.connected).count();
+            snap.max_players = self.cfg.max_players_per_room;
+            snap.joinable =
+                !self.phase.is_running() && self.players.len() < self.cfg.max_players_per_room;
+            snap.last_activity_ms = now_ms();
+        }
+        // The room list this room appears in just (potentially) changed; ping the
+        // browse-view watchers. They re-read and dedupe, so an unchanged snapshot
+        // costs nothing downstream.
+        if let Some(mgr) = self.mgr.upgrade() {
+            mgr.notify_lobby_dirty();
+        }
     }
 }

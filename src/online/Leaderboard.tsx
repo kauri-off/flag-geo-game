@@ -1,6 +1,6 @@
 // Server-wide leaderboard: the top match results recorded by the server. Shown
-// in the browse view; refreshed on mount and whenever a match finishes.
-import { useEffect } from 'react';
+// in the browse view; data is pushed live over the lobby stream (see
+// RoomList's watchLobby), updating whenever any room finishes a match.
 import { Flag } from '../components/Flag';
 import { useOnline } from '../store/onlineStore';
 import { useSettings } from '../store/settingsStore';
@@ -9,11 +9,6 @@ import { t, plural } from '../i18n';
 export function Leaderboard() {
   const language = useSettings((s) => s.language);
   const leaderboard = useOnline((s) => s.leaderboard);
-  const refreshLeaderboard = useOnline((s) => s.refreshLeaderboard);
-
-  useEffect(() => {
-    void refreshLeaderboard();
-  }, [refreshLeaderboard]);
 
   return (
     <section className="panel leaderboard-panel">

@@ -23,7 +23,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file flaggeo/v1/flaggeo.proto.
  */
 export const file_flaggeo_v1_flaggeo: GenFile = /*@__PURE__*/
-  fileDesc("ChhmbGFnZ2VvL3YxL2ZsYWdnZW8ucHJvdG8SCmZsYWdnZW8udjEiUgoQRGlmZmljdWx0eUZpbHRlchISCgpjb250aW5lbnRzGAEgAygJEgwKBHNpemUYAiABKAkSEgoFc2NvcGUYAyABKAlIAIgBAUIICgZfc2NvcGUikQEKClJvb21Db25maWcSDgoGcm91bmRzGAEgASgNEhYKDnRpbWVfbGltaXRfc2VjGAIgASgNEhAKCGF0dGVtcHRzGAMgASgNEjAKCmRpZmZpY3VsdHkYBCABKAsyHC5mbGFnZ2VvLnYxLkRpZmZpY3VsdHlGaWx0ZXISFwoPcmVnaXN0ZXJlZF9vbmx5GAUgASgIIlgKBlBsYXllchIKCgJpZBgBIAEoCRIQCghuaWNrbmFtZRgCIAEoCRIOCgZhdmF0YXIYAyABKAkSDQoFc2NvcmUYBCABKAUSEQoJY29ubmVjdGVkGAUgASgIIlEKCFJvb21JbmZvEgwKBGNvZGUYASABKAkSJgoGY29uZmlnGAIgASgLMhYuZmxhZ2dlby52MS5Sb29tQ29uZmlnEg8KB2hvc3RfaWQYAyABKAkiPgoIU3RhbmRpbmcSEQoJcGxheWVyX2lkGAEgASgJEg0KBXNjb3JlGAIgASgFEhAKCGFuc3dlcmVkGAMgASgIIn4KEVJvdW5kUGxheWVyUmVzdWx0EhEKCXBsYXllcl9pZBgBIAEoCRIPCgdjb3JyZWN0GAIgASgIEg8KB3RpbWVfbXMYAyABKAUSDgoGcG9pbnRzGAQgASgFEhYKCXBpY2tlZF9pZBgFIAEoCUgAiAEBQgwKCl9waWNrZWRfaWQidAoNRmluYWxTdGFuZGluZxIRCglwbGF5ZXJfaWQYASABKAkSEAoIbmlja25hbWUYAiABKAkSDgoGYXZhdGFyGAMgASgJEg0KBXNjb3JlGAQgASgFEg8KB2NvcnJlY3QYBSABKA0SDgoGcm91bmRzGAYgASgNInQKC1Jvb21TdW1tYXJ5EgwKBGNvZGUYASABKAkSDAoEaG9zdBgCIAEoCRIPCgdwbGF5ZXJzGAMgASgNEhMKC21heF9wbGF5ZXJzGAQgASgNEg0KBXBoYXNlGAUgASgJEhQKDGhhc19wYXNzd29yZBgGIAEoCCKEAQoOTGVhZGVyYm9hcmRSb3cSEAoIbmlja25hbWUYASABKAkSDgoGYXZhdGFyGAIgASgJEg0KBXNjb3JlGAMgASgFEg8KB2NvcnJlY3QYBCABKAUSDgoGcm91bmRzGAUgASgFEg0KBWdhbWVzGAYgASgFEhEKCXBsYXllZF9hdBgHIAEoASIQCg5HZXRJbmZvUmVxdWVzdCKOAQoKU2VydmVySW5mbxIMCgRuYW1lGAEgASgJEhUKDWF1dGhfcmVxdWlyZWQYAiABKAgSFgoOZ3Vlc3RzX2FsbG93ZWQYAyABKAgSEwoLbWF4X3BsYXllcnMYBCABKA0SEAoIcHJvdG9jb2wYBSABKA0SHAoUcmVnaXN0cmF0aW9uX2VuYWJsZWQYBiABKAgiEwoRR2V0VmVyc2lvblJlcXVlc3QiMAoLVmVyc2lvbkluZm8SDwoHdmVyc2lvbhgBIAEoCRIQCghwcm90b2NvbBgCIAEoDSIxCgtBdXRoUmVxdWVzdBIVCghwYXNzd29yZBgBIAEoCUgAiAEBQgsKCV9wYXNzd29yZCIdCgxBdXRoUmVzcG9uc2USDQoFdG9rZW4YASABKAkidwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEg4KBmF2YXRhchgDIAEoCRIcCg9zZXJ2ZXJfcGFzc3dvcmQYBCABKAlIAIgBAUISChBfc2VydmVyX3Bhc3N3b3JkIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJACg1BdXRoZWRBY2NvdW50Eg0KBXRva2VuGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEg4KBmF2YXRhchgDIAEoCSISChBMaXN0Um9vbXNSZXF1ZXN0IjsKEUxpc3RSb29tc1Jlc3BvbnNlEiYKBXJvb21zGAEgAygLMhcuZmxhZ2dlby52MS5Sb29tU3VtbWFyeSKLAQoRQ3JlYXRlUm9vbVJlcXVlc3QSEAoIbmlja25hbWUYASABKAkSDgoGYXZhdGFyGAIgASgJEiYKBmNvbmZpZxgDIAEoCzIWLmZsYWdnZW8udjEuUm9vbUNvbmZpZxIaCg1yb29tX3Bhc3N3b3JkGAQgASgJSACIAQFCEAoOX3Jvb21fcGFzc3dvcmQiSQoSQ3JlYXRlUm9vbVJlc3BvbnNlEgwKBGNvZGUYASABKAkSEgoKcm9vbV90b2tlbhgCIAEoCRIRCglwbGF5ZXJfaWQYAyABKAkibwoPSm9pblJvb21SZXF1ZXN0EgwKBGNvZGUYASABKAkSEAoIbmlja25hbWUYAiABKAkSDgoGYXZhdGFyGAMgASgJEhoKDXJvb21fcGFzc3dvcmQYBCABKAlIAIgBAUIQCg5fcm9vbV9wYXNzd29yZCI5ChBKb2luUm9vbVJlc3BvbnNlEhIKCnJvb21fdG9rZW4YASABKAkSEQoJcGxheWVyX2lkGAIgASgJIhcKFUdldExlYWRlcmJvYXJkUmVxdWVzdCJBChZHZXRMZWFkZXJib2FyZFJlc3BvbnNlEicKA3RvcBgBIAMoCzIaLmZsYWdnZW8udjEuTGVhZGVyYm9hcmRSb3ci+wUKC1NlcnZlckV2ZW50EiYKB3dlbGNvbWUYASABKAsyEy5mbGFnZ2VvLnYxLldlbGNvbWVIABIxCg1wbGF5ZXJfam9pbmVkGAIgASgLMhguZmxhZ2dlby52MS5QbGF5ZXJKb2luZWRIABItCgtwbGF5ZXJfbGVmdBgDIAEoCzIWLmZsYWdnZW8udjEuUGxheWVyTGVmdEgAEiQKBmtpY2tlZBgEIAEoCzISLmZsYWdnZW8udjEuS2lja2VkSAASNQoPcHJvZmlsZV91cGRhdGVkGAUgASgLMhouZmxhZ2dlby52MS5Qcm9maWxlVXBkYXRlZEgAEjMKDmNvbmZpZ191cGRhdGVkGAYgASgLMhkuZmxhZ2dlby52MS5Db25maWdVcGRhdGVkSAASLwoMaG9zdF9jaGFuZ2VkGAcgASgLMhcuZmxhZ2dlby52MS5Ib3N0Q2hhbmdlZEgAEioKCWNvdW50ZG93bhgIIAEoCzIVLmZsYWdnZW8udjEuQ291bnRkb3duSAASLQoLcm91bmRfc3RhcnQYCSABKAsyFi5mbGFnZ2VvLnYxLlJvdW5kU3RhcnRIABIrCgphbnN3ZXJfYWNrGAogASgLMhUuZmxhZ2dlby52MS5BbnN3ZXJBY2tIABIsCgpzY29yZWJvYXJkGAsgASgLMhYuZmxhZ2dlby52MS5TY29yZWJvYXJkSAASLwoMcm91bmRfcmVzdWx0GAwgASgLMhcuZmxhZ2dlby52MS5Sb3VuZFJlc3VsdEgAEi8KDG1hdGNoX3Jlc3VsdBgNIAEoCzIXLmZsYWdnZW8udjEuTWF0Y2hSZXN1bHRIABIxCg1tYXRjaF9hYm9ydGVkGA4gASgLMhguZmxhZ2dlby52MS5NYXRjaEFib3J0ZWRIABIgCgRjaGF0GA8gASgLMhAuZmxhZ2dlby52MS5DaGF0SAASJwoFZXJyb3IYECABKAsyFi5mbGFnZ2VvLnYxLkVycm9yRXZlbnRIAEIJCgdwYXlsb2FkInQKB1dlbGNvbWUSEQoJcGxheWVyX2lkGAEgASgJEiIKBHJvb20YAiABKAsyFC5mbGFnZ2VvLnYxLlJvb21JbmZvEiMKB3BsYXllcnMYAyADKAsyEi5mbGFnZ2VvLnYxLlBsYXllchINCgVwaGFzZRgEIAEoCSIyCgxQbGF5ZXJKb2luZWQSIgoGcGxheWVyGAEgASgLMhIuZmxhZ2dlby52MS5QbGF5ZXIiHwoKUGxheWVyTGVmdBIRCglwbGF5ZXJfaWQYASABKAkiCAoGS2lja2VkIkUKDlByb2ZpbGVVcGRhdGVkEhEKCXBsYXllcl9pZBgBIAEoCRIQCghuaWNrbmFtZRgCIAEoCRIOCgZhdmF0YXIYAyABKAkiNwoNQ29uZmlnVXBkYXRlZBImCgZjb25maWcYASABKAsyFi5mbGFnZ2VvLnYxLlJvb21Db25maWciHgoLSG9zdENoYW5nZWQSDwoHaG9zdF9pZBgBIAEoCSIcCglDb3VudGRvd24SDwoHc2Vjb25kcxgBIAEoDSJPCgpSb3VuZFN0YXJ0Eg0KBWluZGV4GAEgASgNEg0KBXRvdGFsGAIgASgNEg4KBmFscGhhMhgDIAEoCRITCgtkZWFkbGluZV9tcxgEIAEoASIyCglBbnN3ZXJBY2sSEwoLcm91bmRfaW5kZXgYASABKA0SEAoIYWNjZXB0ZWQYAiABKAgiNQoKU2NvcmVib2FyZBInCglzdGFuZGluZ3MYASADKAsyFC5mbGFnZ2VvLnYxLlN0YW5kaW5nIngKC1JvdW5kUmVzdWx0Eg0KBWluZGV4GAEgASgNEhEKCXRhcmdldF9pZBgCIAEoCRIuCgdyZXN1bHRzGAMgAygLMh0uZmxhZ2dlby52MS5Sb3VuZFBsYXllclJlc3VsdBIXCg9pbnRlcm1pc3Npb25fbXMYBCABKA0iYQoLTWF0Y2hSZXN1bHQSLAoJc3RhbmRpbmdzGAEgAygLMhkuZmxhZ2dlby52MS5GaW5hbFN0YW5kaW5nEhYKCXdpbm5lcl9pZBgCIAEoCUgAiAEBQgwKCl93aW5uZXJfaWQiDgoMTWF0Y2hBYm9ydGVkIjkKBENoYXQSEQoJcGxheWVyX2lkGAEgASgJEhAKCG5pY2tuYW1lGAIgASgJEgwKBHRleHQYAyABKAkiKwoKRXJyb3JFdmVudBIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiEwoRUGxheUV2ZW50c1JlcXVlc3QiNQoRU2V0UHJvZmlsZVJlcXVlc3QSEAoIbmlja25hbWUYASABKAkSDgoGYXZhdGFyGAIgASgJIj0KE1VwZGF0ZUNvbmZpZ1JlcXVlc3QSJgoGY29uZmlnGAEgASgLMhYuZmxhZ2dlby52MS5Sb29tQ29uZmlnIigKE1RyYW5zZmVySG9zdFJlcXVlc3QSEQoJcGxheWVyX2lkGAEgASgJIiYKEUtpY2tQbGF5ZXJSZXF1ZXN0EhEKCXBsYXllcl9pZBgBIAEoCSITChFTdGFydE1hdGNoUmVxdWVzdCI+ChNTdWJtaXRBbnN3ZXJSZXF1ZXN0EhMKC3JvdW5kX2luZGV4GAEgASgNEhIKCmNvdW50cnlfaWQYAiABKAkiHwoPU2VuZENoYXRSZXF1ZXN0EgwKBHRleHQYASABKAkiEgoQTGVhdmVSb29tUmVxdWVzdCIFCgNBY2syzwIKC0F1dGhTZXJ2aWNlEj0KB0dldEluZm8SGi5mbGFnZ2VvLnYxLkdldEluZm9SZXF1ZXN0GhYuZmxhZ2dlby52MS5TZXJ2ZXJJbmZvEkQKCkdldFZlcnNpb24SHS5mbGFnZ2VvLnYxLkdldFZlcnNpb25SZXF1ZXN0GhcuZmxhZ2dlby52MS5WZXJzaW9uSW5mbxI5CgRBdXRoEhcuZmxhZ2dlby52MS5BdXRoUmVxdWVzdBoYLmZsYWdnZW8udjEuQXV0aFJlc3BvbnNlEkIKCFJlZ2lzdGVyEhsuZmxhZ2dlby52MS5SZWdpc3RlclJlcXVlc3QaGS5mbGFnZ2VvLnYxLkF1dGhlZEFjY291bnQSPAoFTG9naW4SGC5mbGFnZ2VvLnYxLkxvZ2luUmVxdWVzdBoZLmZsYWdnZW8udjEuQXV0aGVkQWNjb3VudDLEAgoLUm9vbVNlcnZpY2USSAoJTGlzdFJvb21zEhwuZmxhZ2dlby52MS5MaXN0Um9vbXNSZXF1ZXN0Gh0uZmxhZ2dlby52MS5MaXN0Um9vbXNSZXNwb25zZRJLCgpDcmVhdGVSb29tEh0uZmxhZ2dlby52MS5DcmVhdGVSb29tUmVxdWVzdBoeLmZsYWdnZW8udjEuQ3JlYXRlUm9vbVJlc3BvbnNlEkUKCEpvaW5Sb29tEhsuZmxhZ2dlby52MS5Kb2luUm9vbVJlcXVlc3QaHC5mbGFnZ2VvLnYxLkpvaW5Sb29tUmVzcG9uc2USVwoOR2V0TGVhZGVyYm9hcmQSIS5mbGFnZ2VvLnYxLkdldExlYWRlcmJvYXJkUmVxdWVzdBoiLmZsYWdnZW8udjEuR2V0TGVhZGVyYm9hcmRSZXNwb25zZTLLBAoLR2FtZVNlcnZpY2USRgoKUGxheUV2ZW50cxIdLmZsYWdnZW8udjEuUGxheUV2ZW50c1JlcXVlc3QaFy5mbGFnZ2VvLnYxLlNlcnZlckV2ZW50MAESPAoKU2V0UHJvZmlsZRIdLmZsYWdnZW8udjEuU2V0UHJvZmlsZVJlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxJACgxVcGRhdGVDb25maWcSHy5mbGFnZ2VvLnYxLlVwZGF0ZUNvbmZpZ1JlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxJACgxUcmFuc2Zlckhvc3QSHy5mbGFnZ2VvLnYxLlRyYW5zZmVySG9zdFJlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxI8CgpLaWNrUGxheWVyEh0uZmxhZ2dlby52MS5LaWNrUGxheWVyUmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrEjwKClN0YXJ0TWF0Y2gSHS5mbGFnZ2VvLnYxLlN0YXJ0TWF0Y2hSZXF1ZXN0Gg8uZmxhZ2dlby52MS5BY2sSQAoMU3VibWl0QW5zd2VyEh8uZmxhZ2dlby52MS5TdWJtaXRBbnN3ZXJSZXF1ZXN0Gg8uZmxhZ2dlby52MS5BY2sSOAoIU2VuZENoYXQSGy5mbGFnZ2VvLnYxLlNlbmRDaGF0UmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrEjoKCUxlYXZlUm9vbRIcLmZsYWdnZW8udjEuTGVhdmVSb29tUmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrYgZwcm90bzM");
+  fileDesc("ChhmbGFnZ2VvL3YxL2ZsYWdnZW8ucHJvdG8SCmZsYWdnZW8udjEiUgoQRGlmZmljdWx0eUZpbHRlchISCgpjb250aW5lbnRzGAEgAygJEgwKBHNpemUYAiABKAkSEgoFc2NvcGUYAyABKAlIAIgBAUIICgZfc2NvcGUikQEKClJvb21Db25maWcSDgoGcm91bmRzGAEgASgNEhYKDnRpbWVfbGltaXRfc2VjGAIgASgNEhAKCGF0dGVtcHRzGAMgASgNEjAKCmRpZmZpY3VsdHkYBCABKAsyHC5mbGFnZ2VvLnYxLkRpZmZpY3VsdHlGaWx0ZXISFwoPcmVnaXN0ZXJlZF9vbmx5GAUgASgIIlgKBlBsYXllchIKCgJpZBgBIAEoCRIQCghuaWNrbmFtZRgCIAEoCRIOCgZhdmF0YXIYAyABKAkSDQoFc2NvcmUYBCABKAUSEQoJY29ubmVjdGVkGAUgASgIIlEKCFJvb21JbmZvEgwKBGNvZGUYASABKAkSJgoGY29uZmlnGAIgASgLMhYuZmxhZ2dlby52MS5Sb29tQ29uZmlnEg8KB2hvc3RfaWQYAyABKAkiPgoIU3RhbmRpbmcSEQoJcGxheWVyX2lkGAEgASgJEg0KBXNjb3JlGAIgASgFEhAKCGFuc3dlcmVkGAMgASgIIn4KEVJvdW5kUGxheWVyUmVzdWx0EhEKCXBsYXllcl9pZBgBIAEoCRIPCgdjb3JyZWN0GAIgASgIEg8KB3RpbWVfbXMYAyABKAUSDgoGcG9pbnRzGAQgASgFEhYKCXBpY2tlZF9pZBgFIAEoCUgAiAEBQgwKCl9waWNrZWRfaWQidAoNRmluYWxTdGFuZGluZxIRCglwbGF5ZXJfaWQYASABKAkSEAoIbmlja25hbWUYAiABKAkSDgoGYXZhdGFyGAMgASgJEg0KBXNjb3JlGAQgASgFEg8KB2NvcnJlY3QYBSABKA0SDgoGcm91bmRzGAYgASgNInQKC1Jvb21TdW1tYXJ5EgwKBGNvZGUYASABKAkSDAoEaG9zdBgCIAEoCRIPCgdwbGF5ZXJzGAMgASgNEhMKC21heF9wbGF5ZXJzGAQgASgNEg0KBXBoYXNlGAUgASgJEhQKDGhhc19wYXNzd29yZBgGIAEoCCKEAQoOTGVhZGVyYm9hcmRSb3cSEAoIbmlja25hbWUYASABKAkSDgoGYXZhdGFyGAIgASgJEg0KBXNjb3JlGAMgASgFEg8KB2NvcnJlY3QYBCABKAUSDgoGcm91bmRzGAUgASgFEg0KBWdhbWVzGAYgASgFEhEKCXBsYXllZF9hdBgHIAEoASIQCg5HZXRJbmZvUmVxdWVzdCKOAQoKU2VydmVySW5mbxIMCgRuYW1lGAEgASgJEhUKDWF1dGhfcmVxdWlyZWQYAiABKAgSFgoOZ3Vlc3RzX2FsbG93ZWQYAyABKAgSEwoLbWF4X3BsYXllcnMYBCABKA0SEAoIcHJvdG9jb2wYBSABKA0SHAoUcmVnaXN0cmF0aW9uX2VuYWJsZWQYBiABKAgiEwoRR2V0VmVyc2lvblJlcXVlc3QiMAoLVmVyc2lvbkluZm8SDwoHdmVyc2lvbhgBIAEoCRIQCghwcm90b2NvbBgCIAEoDSIxCgtBdXRoUmVxdWVzdBIVCghwYXNzd29yZBgBIAEoCUgAiAEBQgsKCV9wYXNzd29yZCIdCgxBdXRoUmVzcG9uc2USDQoFdG9rZW4YASABKAkidwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEg4KBmF2YXRhchgDIAEoCRIcCg9zZXJ2ZXJfcGFzc3dvcmQYBCABKAlIAIgBAUISChBfc2VydmVyX3Bhc3N3b3JkIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJACg1BdXRoZWRBY2NvdW50Eg0KBXRva2VuGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEg4KBmF2YXRhchgDIAEoCSISChBMaXN0Um9vbXNSZXF1ZXN0IjsKEUxpc3RSb29tc1Jlc3BvbnNlEiYKBXJvb21zGAEgAygLMhcuZmxhZ2dlby52MS5Sb29tU3VtbWFyeSKLAQoRQ3JlYXRlUm9vbVJlcXVlc3QSEAoIbmlja25hbWUYASABKAkSDgoGYXZhdGFyGAIgASgJEiYKBmNvbmZpZxgDIAEoCzIWLmZsYWdnZW8udjEuUm9vbUNvbmZpZxIaCg1yb29tX3Bhc3N3b3JkGAQgASgJSACIAQFCEAoOX3Jvb21fcGFzc3dvcmQiSQoSQ3JlYXRlUm9vbVJlc3BvbnNlEgwKBGNvZGUYASABKAkSEgoKcm9vbV90b2tlbhgCIAEoCRIRCglwbGF5ZXJfaWQYAyABKAkibwoPSm9pblJvb21SZXF1ZXN0EgwKBGNvZGUYASABKAkSEAoIbmlja25hbWUYAiABKAkSDgoGYXZhdGFyGAMgASgJEhoKDXJvb21fcGFzc3dvcmQYBCABKAlIAIgBAUIQCg5fcm9vbV9wYXNzd29yZCI5ChBKb2luUm9vbVJlc3BvbnNlEhIKCnJvb21fdG9rZW4YASABKAkSEQoJcGxheWVyX2lkGAIgASgJIhcKFUdldExlYWRlcmJvYXJkUmVxdWVzdCJBChZHZXRMZWFkZXJib2FyZFJlc3BvbnNlEicKA3RvcBgBIAMoCzIaLmZsYWdnZW8udjEuTGVhZGVyYm9hcmRSb3ciEwoRV2F0Y2hMb2JieVJlcXVlc3QiggEKCkxvYmJ5RXZlbnQSLgoFcm9vbXMYASABKAsyHS5mbGFnZ2VvLnYxLkxpc3RSb29tc1Jlc3BvbnNlSAASOQoLbGVhZGVyYm9hcmQYAiABKAsyIi5mbGFnZ2VvLnYxLkdldExlYWRlcmJvYXJkUmVzcG9uc2VIAEIJCgdwYXlsb2FkIvsFCgtTZXJ2ZXJFdmVudBImCgd3ZWxjb21lGAEgASgLMhMuZmxhZ2dlby52MS5XZWxjb21lSAASMQoNcGxheWVyX2pvaW5lZBgCIAEoCzIYLmZsYWdnZW8udjEuUGxheWVySm9pbmVkSAASLQoLcGxheWVyX2xlZnQYAyABKAsyFi5mbGFnZ2VvLnYxLlBsYXllckxlZnRIABIkCgZraWNrZWQYBCABKAsyEi5mbGFnZ2VvLnYxLktpY2tlZEgAEjUKD3Byb2ZpbGVfdXBkYXRlZBgFIAEoCzIaLmZsYWdnZW8udjEuUHJvZmlsZVVwZGF0ZWRIABIzCg5jb25maWdfdXBkYXRlZBgGIAEoCzIZLmZsYWdnZW8udjEuQ29uZmlnVXBkYXRlZEgAEi8KDGhvc3RfY2hhbmdlZBgHIAEoCzIXLmZsYWdnZW8udjEuSG9zdENoYW5nZWRIABIqCgljb3VudGRvd24YCCABKAsyFS5mbGFnZ2VvLnYxLkNvdW50ZG93bkgAEi0KC3JvdW5kX3N0YXJ0GAkgASgLMhYuZmxhZ2dlby52MS5Sb3VuZFN0YXJ0SAASKwoKYW5zd2VyX2FjaxgKIAEoCzIVLmZsYWdnZW8udjEuQW5zd2VyQWNrSAASLAoKc2NvcmVib2FyZBgLIAEoCzIWLmZsYWdnZW8udjEuU2NvcmVib2FyZEgAEi8KDHJvdW5kX3Jlc3VsdBgMIAEoCzIXLmZsYWdnZW8udjEuUm91bmRSZXN1bHRIABIvCgxtYXRjaF9yZXN1bHQYDSABKAsyFy5mbGFnZ2VvLnYxLk1hdGNoUmVzdWx0SAASMQoNbWF0Y2hfYWJvcnRlZBgOIAEoCzIYLmZsYWdnZW8udjEuTWF0Y2hBYm9ydGVkSAASIAoEY2hhdBgPIAEoCzIQLmZsYWdnZW8udjEuQ2hhdEgAEicKBWVycm9yGBAgASgLMhYuZmxhZ2dlby52MS5FcnJvckV2ZW50SABCCQoHcGF5bG9hZCJ0CgdXZWxjb21lEhEKCXBsYXllcl9pZBgBIAEoCRIiCgRyb29tGAIgASgLMhQuZmxhZ2dlby52MS5Sb29tSW5mbxIjCgdwbGF5ZXJzGAMgAygLMhIuZmxhZ2dlby52MS5QbGF5ZXISDQoFcGhhc2UYBCABKAkiMgoMUGxheWVySm9pbmVkEiIKBnBsYXllchgBIAEoCzISLmZsYWdnZW8udjEuUGxheWVyIh8KClBsYXllckxlZnQSEQoJcGxheWVyX2lkGAEgASgJIggKBktpY2tlZCJFCg5Qcm9maWxlVXBkYXRlZBIRCglwbGF5ZXJfaWQYASABKAkSEAoIbmlja25hbWUYAiABKAkSDgoGYXZhdGFyGAMgASgJIjcKDUNvbmZpZ1VwZGF0ZWQSJgoGY29uZmlnGAEgASgLMhYuZmxhZ2dlby52MS5Sb29tQ29uZmlnIh4KC0hvc3RDaGFuZ2VkEg8KB2hvc3RfaWQYASABKAkiHAoJQ291bnRkb3duEg8KB3NlY29uZHMYASABKA0iTwoKUm91bmRTdGFydBINCgVpbmRleBgBIAEoDRINCgV0b3RhbBgCIAEoDRIOCgZhbHBoYTIYAyABKAkSEwoLZGVhZGxpbmVfbXMYBCABKAEiMgoJQW5zd2VyQWNrEhMKC3JvdW5kX2luZGV4GAEgASgNEhAKCGFjY2VwdGVkGAIgASgIIjUKClNjb3JlYm9hcmQSJwoJc3RhbmRpbmdzGAEgAygLMhQuZmxhZ2dlby52MS5TdGFuZGluZyJ4CgtSb3VuZFJlc3VsdBINCgVpbmRleBgBIAEoDRIRCgl0YXJnZXRfaWQYAiABKAkSLgoHcmVzdWx0cxgDIAMoCzIdLmZsYWdnZW8udjEuUm91bmRQbGF5ZXJSZXN1bHQSFwoPaW50ZXJtaXNzaW9uX21zGAQgASgNImEKC01hdGNoUmVzdWx0EiwKCXN0YW5kaW5ncxgBIAMoCzIZLmZsYWdnZW8udjEuRmluYWxTdGFuZGluZxIWCgl3aW5uZXJfaWQYAiABKAlIAIgBAUIMCgpfd2lubmVyX2lkIg4KDE1hdGNoQWJvcnRlZCI5CgRDaGF0EhEKCXBsYXllcl9pZBgBIAEoCRIQCghuaWNrbmFtZRgCIAEoCRIMCgR0ZXh0GAMgASgJIisKCkVycm9yRXZlbnQSDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJIhMKEVBsYXlFdmVudHNSZXF1ZXN0IjUKEVNldFByb2ZpbGVSZXF1ZXN0EhAKCG5pY2tuYW1lGAEgASgJEg4KBmF2YXRhchgCIAEoCSI9ChNVcGRhdGVDb25maWdSZXF1ZXN0EiYKBmNvbmZpZxgBIAEoCzIWLmZsYWdnZW8udjEuUm9vbUNvbmZpZyIoChNUcmFuc2Zlckhvc3RSZXF1ZXN0EhEKCXBsYXllcl9pZBgBIAEoCSImChFLaWNrUGxheWVyUmVxdWVzdBIRCglwbGF5ZXJfaWQYASABKAkiEwoRU3RhcnRNYXRjaFJlcXVlc3QiPgoTU3VibWl0QW5zd2VyUmVxdWVzdBITCgtyb3VuZF9pbmRleBgBIAEoDRISCgpjb3VudHJ5X2lkGAIgASgJIh8KD1NlbmRDaGF0UmVxdWVzdBIMCgR0ZXh0GAEgASgJIhIKEExlYXZlUm9vbVJlcXVlc3QiBQoDQWNrMs8CCgtBdXRoU2VydmljZRI9CgdHZXRJbmZvEhouZmxhZ2dlby52MS5HZXRJbmZvUmVxdWVzdBoWLmZsYWdnZW8udjEuU2VydmVySW5mbxJECgpHZXRWZXJzaW9uEh0uZmxhZ2dlby52MS5HZXRWZXJzaW9uUmVxdWVzdBoXLmZsYWdnZW8udjEuVmVyc2lvbkluZm8SOQoEQXV0aBIXLmZsYWdnZW8udjEuQXV0aFJlcXVlc3QaGC5mbGFnZ2VvLnYxLkF1dGhSZXNwb25zZRJCCghSZWdpc3RlchIbLmZsYWdnZW8udjEuUmVnaXN0ZXJSZXF1ZXN0GhkuZmxhZ2dlby52MS5BdXRoZWRBY2NvdW50EjwKBUxvZ2luEhguZmxhZ2dlby52MS5Mb2dpblJlcXVlc3QaGS5mbGFnZ2VvLnYxLkF1dGhlZEFjY291bnQyiwMKC1Jvb21TZXJ2aWNlEkgKCUxpc3RSb29tcxIcLmZsYWdnZW8udjEuTGlzdFJvb21zUmVxdWVzdBodLmZsYWdnZW8udjEuTGlzdFJvb21zUmVzcG9uc2USSwoKQ3JlYXRlUm9vbRIdLmZsYWdnZW8udjEuQ3JlYXRlUm9vbVJlcXVlc3QaHi5mbGFnZ2VvLnYxLkNyZWF0ZVJvb21SZXNwb25zZRJFCghKb2luUm9vbRIbLmZsYWdnZW8udjEuSm9pblJvb21SZXF1ZXN0GhwuZmxhZ2dlby52MS5Kb2luUm9vbVJlc3BvbnNlElcKDkdldExlYWRlcmJvYXJkEiEuZmxhZ2dlby52MS5HZXRMZWFkZXJib2FyZFJlcXVlc3QaIi5mbGFnZ2VvLnYxLkdldExlYWRlcmJvYXJkUmVzcG9uc2USRQoKV2F0Y2hMb2JieRIdLmZsYWdnZW8udjEuV2F0Y2hMb2JieVJlcXVlc3QaFi5mbGFnZ2VvLnYxLkxvYmJ5RXZlbnQwATLLBAoLR2FtZVNlcnZpY2USRgoKUGxheUV2ZW50cxIdLmZsYWdnZW8udjEuUGxheUV2ZW50c1JlcXVlc3QaFy5mbGFnZ2VvLnYxLlNlcnZlckV2ZW50MAESPAoKU2V0UHJvZmlsZRIdLmZsYWdnZW8udjEuU2V0UHJvZmlsZVJlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxJACgxVcGRhdGVDb25maWcSHy5mbGFnZ2VvLnYxLlVwZGF0ZUNvbmZpZ1JlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxJACgxUcmFuc2Zlckhvc3QSHy5mbGFnZ2VvLnYxLlRyYW5zZmVySG9zdFJlcXVlc3QaDy5mbGFnZ2VvLnYxLkFjaxI8CgpLaWNrUGxheWVyEh0uZmxhZ2dlby52MS5LaWNrUGxheWVyUmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrEjwKClN0YXJ0TWF0Y2gSHS5mbGFnZ2VvLnYxLlN0YXJ0TWF0Y2hSZXF1ZXN0Gg8uZmxhZ2dlby52MS5BY2sSQAoMU3VibWl0QW5zd2VyEh8uZmxhZ2dlby52MS5TdWJtaXRBbnN3ZXJSZXF1ZXN0Gg8uZmxhZ2dlby52MS5BY2sSOAoIU2VuZENoYXQSGy5mbGFnZ2VvLnYxLlNlbmRDaGF0UmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrEjoKCUxlYXZlUm9vbRIcLmZsYWdnZW8udjEuTGVhdmVSb29tUmVxdWVzdBoPLmZsYWdnZW8udjEuQWNrYgZwcm90bzM");
 
 /**
  * @generated from message flaggeo.v1.DifficultyFilter
@@ -747,6 +747,51 @@ export const GetLeaderboardResponseSchema: GenMessage<GetLeaderboardResponse> = 
   messageDesc(file_flaggeo_v1_flaggeo, 25);
 
 /**
+ * @generated from message flaggeo.v1.WatchLobbyRequest
+ */
+export type WatchLobbyRequest = Message<"flaggeo.v1.WatchLobbyRequest"> & {
+};
+
+/**
+ * Describes the message flaggeo.v1.WatchLobbyRequest.
+ * Use `create(WatchLobbyRequestSchema)` to create a new message.
+ */
+export const WatchLobbyRequestSchema: GenMessage<WatchLobbyRequest> = /*@__PURE__*/
+  messageDesc(file_flaggeo_v1_flaggeo, 26);
+
+/**
+ * Pushed whenever the lobby changes. Each event carries exactly one updated
+ * feed; both are sent once on connect as the initial snapshot.
+ *
+ * @generated from message flaggeo.v1.LobbyEvent
+ */
+export type LobbyEvent = Message<"flaggeo.v1.LobbyEvent"> & {
+  /**
+   * @generated from oneof flaggeo.v1.LobbyEvent.payload
+   */
+  payload: {
+    /**
+     * @generated from field: flaggeo.v1.ListRoomsResponse rooms = 1;
+     */
+    value: ListRoomsResponse;
+    case: "rooms";
+  } | {
+    /**
+     * @generated from field: flaggeo.v1.GetLeaderboardResponse leaderboard = 2;
+     */
+    value: GetLeaderboardResponse;
+    case: "leaderboard";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message flaggeo.v1.LobbyEvent.
+ * Use `create(LobbyEventSchema)` to create a new message.
+ */
+export const LobbyEventSchema: GenMessage<LobbyEvent> = /*@__PURE__*/
+  messageDesc(file_flaggeo_v1_flaggeo, 27);
+
+/**
  * Server -> client events. `payload` is a oneof whose field names match the
  * old ServerMsg `type` tags so the client switch maps 1:1.
  *
@@ -860,7 +905,7 @@ export type ServerEvent = Message<"flaggeo.v1.ServerEvent"> & {
  * Use `create(ServerEventSchema)` to create a new message.
  */
 export const ServerEventSchema: GenMessage<ServerEvent> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 26);
+  messageDesc(file_flaggeo_v1_flaggeo, 28);
 
 /**
  * Full room snapshot, sent to a single connection on (re)join.
@@ -894,7 +939,7 @@ export type Welcome = Message<"flaggeo.v1.Welcome"> & {
  * Use `create(WelcomeSchema)` to create a new message.
  */
 export const WelcomeSchema: GenMessage<Welcome> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 27);
+  messageDesc(file_flaggeo_v1_flaggeo, 29);
 
 /**
  * @generated from message flaggeo.v1.PlayerJoined
@@ -911,7 +956,7 @@ export type PlayerJoined = Message<"flaggeo.v1.PlayerJoined"> & {
  * Use `create(PlayerJoinedSchema)` to create a new message.
  */
 export const PlayerJoinedSchema: GenMessage<PlayerJoined> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 28);
+  messageDesc(file_flaggeo_v1_flaggeo, 30);
 
 /**
  * @generated from message flaggeo.v1.PlayerLeft
@@ -928,7 +973,7 @@ export type PlayerLeft = Message<"flaggeo.v1.PlayerLeft"> & {
  * Use `create(PlayerLeftSchema)` to create a new message.
  */
 export const PlayerLeftSchema: GenMessage<PlayerLeft> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 29);
+  messageDesc(file_flaggeo_v1_flaggeo, 31);
 
 /**
  * Sent to a player removed by the host; their client leaves the room.
@@ -943,7 +988,7 @@ export type Kicked = Message<"flaggeo.v1.Kicked"> & {
  * Use `create(KickedSchema)` to create a new message.
  */
 export const KickedSchema: GenMessage<Kicked> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 30);
+  messageDesc(file_flaggeo_v1_flaggeo, 32);
 
 /**
  * @generated from message flaggeo.v1.ProfileUpdated
@@ -970,7 +1015,7 @@ export type ProfileUpdated = Message<"flaggeo.v1.ProfileUpdated"> & {
  * Use `create(ProfileUpdatedSchema)` to create a new message.
  */
 export const ProfileUpdatedSchema: GenMessage<ProfileUpdated> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 31);
+  messageDesc(file_flaggeo_v1_flaggeo, 33);
 
 /**
  * @generated from message flaggeo.v1.ConfigUpdated
@@ -987,7 +1032,7 @@ export type ConfigUpdated = Message<"flaggeo.v1.ConfigUpdated"> & {
  * Use `create(ConfigUpdatedSchema)` to create a new message.
  */
 export const ConfigUpdatedSchema: GenMessage<ConfigUpdated> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 32);
+  messageDesc(file_flaggeo_v1_flaggeo, 34);
 
 /**
  * @generated from message flaggeo.v1.HostChanged
@@ -1004,7 +1049,7 @@ export type HostChanged = Message<"flaggeo.v1.HostChanged"> & {
  * Use `create(HostChangedSchema)` to create a new message.
  */
 export const HostChangedSchema: GenMessage<HostChanged> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 33);
+  messageDesc(file_flaggeo_v1_flaggeo, 35);
 
 /**
  * @generated from message flaggeo.v1.Countdown
@@ -1021,7 +1066,7 @@ export type Countdown = Message<"flaggeo.v1.Countdown"> & {
  * Use `create(CountdownSchema)` to create a new message.
  */
 export const CountdownSchema: GenMessage<Countdown> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 34);
+  messageDesc(file_flaggeo_v1_flaggeo, 36);
 
 /**
  * @generated from message flaggeo.v1.RoundStart
@@ -1053,7 +1098,7 @@ export type RoundStart = Message<"flaggeo.v1.RoundStart"> & {
  * Use `create(RoundStartSchema)` to create a new message.
  */
 export const RoundStartSchema: GenMessage<RoundStart> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 35);
+  messageDesc(file_flaggeo_v1_flaggeo, 37);
 
 /**
  * @generated from message flaggeo.v1.AnswerAck
@@ -1075,7 +1120,7 @@ export type AnswerAck = Message<"flaggeo.v1.AnswerAck"> & {
  * Use `create(AnswerAckSchema)` to create a new message.
  */
 export const AnswerAckSchema: GenMessage<AnswerAck> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 36);
+  messageDesc(file_flaggeo_v1_flaggeo, 38);
 
 /**
  * @generated from message flaggeo.v1.Scoreboard
@@ -1092,7 +1137,7 @@ export type Scoreboard = Message<"flaggeo.v1.Scoreboard"> & {
  * Use `create(ScoreboardSchema)` to create a new message.
  */
 export const ScoreboardSchema: GenMessage<Scoreboard> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 37);
+  messageDesc(file_flaggeo_v1_flaggeo, 39);
 
 /**
  * @generated from message flaggeo.v1.RoundResult
@@ -1126,7 +1171,7 @@ export type RoundResult = Message<"flaggeo.v1.RoundResult"> & {
  * Use `create(RoundResultSchema)` to create a new message.
  */
 export const RoundResultSchema: GenMessage<RoundResult> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 38);
+  messageDesc(file_flaggeo_v1_flaggeo, 40);
 
 /**
  * @generated from message flaggeo.v1.MatchResult
@@ -1148,7 +1193,7 @@ export type MatchResult = Message<"flaggeo.v1.MatchResult"> & {
  * Use `create(MatchResultSchema)` to create a new message.
  */
 export const MatchResultSchema: GenMessage<MatchResult> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 39);
+  messageDesc(file_flaggeo_v1_flaggeo, 41);
 
 /**
  * The match was stopped before finishing (too few players remained).
@@ -1163,7 +1208,7 @@ export type MatchAborted = Message<"flaggeo.v1.MatchAborted"> & {
  * Use `create(MatchAbortedSchema)` to create a new message.
  */
 export const MatchAbortedSchema: GenMessage<MatchAborted> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 40);
+  messageDesc(file_flaggeo_v1_flaggeo, 42);
 
 /**
  * @generated from message flaggeo.v1.Chat
@@ -1190,7 +1235,7 @@ export type Chat = Message<"flaggeo.v1.Chat"> & {
  * Use `create(ChatSchema)` to create a new message.
  */
 export const ChatSchema: GenMessage<Chat> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 41);
+  messageDesc(file_flaggeo_v1_flaggeo, 43);
 
 /**
  * @generated from message flaggeo.v1.ErrorEvent
@@ -1212,7 +1257,7 @@ export type ErrorEvent = Message<"flaggeo.v1.ErrorEvent"> & {
  * Use `create(ErrorEventSchema)` to create a new message.
  */
 export const ErrorEventSchema: GenMessage<ErrorEvent> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 42);
+  messageDesc(file_flaggeo_v1_flaggeo, 44);
 
 /**
  * @generated from message flaggeo.v1.PlayEventsRequest
@@ -1225,7 +1270,7 @@ export type PlayEventsRequest = Message<"flaggeo.v1.PlayEventsRequest"> & {
  * Use `create(PlayEventsRequestSchema)` to create a new message.
  */
 export const PlayEventsRequestSchema: GenMessage<PlayEventsRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 43);
+  messageDesc(file_flaggeo_v1_flaggeo, 45);
 
 /**
  * @generated from message flaggeo.v1.SetProfileRequest
@@ -1247,7 +1292,7 @@ export type SetProfileRequest = Message<"flaggeo.v1.SetProfileRequest"> & {
  * Use `create(SetProfileRequestSchema)` to create a new message.
  */
 export const SetProfileRequestSchema: GenMessage<SetProfileRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 44);
+  messageDesc(file_flaggeo_v1_flaggeo, 46);
 
 /**
  * @generated from message flaggeo.v1.UpdateConfigRequest
@@ -1264,7 +1309,7 @@ export type UpdateConfigRequest = Message<"flaggeo.v1.UpdateConfigRequest"> & {
  * Use `create(UpdateConfigRequestSchema)` to create a new message.
  */
 export const UpdateConfigRequestSchema: GenMessage<UpdateConfigRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 45);
+  messageDesc(file_flaggeo_v1_flaggeo, 47);
 
 /**
  * @generated from message flaggeo.v1.TransferHostRequest
@@ -1281,7 +1326,7 @@ export type TransferHostRequest = Message<"flaggeo.v1.TransferHostRequest"> & {
  * Use `create(TransferHostRequestSchema)` to create a new message.
  */
 export const TransferHostRequestSchema: GenMessage<TransferHostRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 46);
+  messageDesc(file_flaggeo_v1_flaggeo, 48);
 
 /**
  * @generated from message flaggeo.v1.KickPlayerRequest
@@ -1298,7 +1343,7 @@ export type KickPlayerRequest = Message<"flaggeo.v1.KickPlayerRequest"> & {
  * Use `create(KickPlayerRequestSchema)` to create a new message.
  */
 export const KickPlayerRequestSchema: GenMessage<KickPlayerRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 47);
+  messageDesc(file_flaggeo_v1_flaggeo, 49);
 
 /**
  * @generated from message flaggeo.v1.StartMatchRequest
@@ -1311,7 +1356,7 @@ export type StartMatchRequest = Message<"flaggeo.v1.StartMatchRequest"> & {
  * Use `create(StartMatchRequestSchema)` to create a new message.
  */
 export const StartMatchRequestSchema: GenMessage<StartMatchRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 48);
+  messageDesc(file_flaggeo_v1_flaggeo, 50);
 
 /**
  * @generated from message flaggeo.v1.SubmitAnswerRequest
@@ -1333,7 +1378,7 @@ export type SubmitAnswerRequest = Message<"flaggeo.v1.SubmitAnswerRequest"> & {
  * Use `create(SubmitAnswerRequestSchema)` to create a new message.
  */
 export const SubmitAnswerRequestSchema: GenMessage<SubmitAnswerRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 49);
+  messageDesc(file_flaggeo_v1_flaggeo, 51);
 
 /**
  * @generated from message flaggeo.v1.SendChatRequest
@@ -1350,7 +1395,7 @@ export type SendChatRequest = Message<"flaggeo.v1.SendChatRequest"> & {
  * Use `create(SendChatRequestSchema)` to create a new message.
  */
 export const SendChatRequestSchema: GenMessage<SendChatRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 50);
+  messageDesc(file_flaggeo_v1_flaggeo, 52);
 
 /**
  * @generated from message flaggeo.v1.LeaveRoomRequest
@@ -1363,7 +1408,7 @@ export type LeaveRoomRequest = Message<"flaggeo.v1.LeaveRoomRequest"> & {
  * Use `create(LeaveRoomRequestSchema)` to create a new message.
  */
 export const LeaveRoomRequestSchema: GenMessage<LeaveRoomRequest> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 51);
+  messageDesc(file_flaggeo_v1_flaggeo, 53);
 
 /**
  * Empty acknowledgement returned by the action RPCs; soft acks/errors continue
@@ -1379,7 +1424,7 @@ export type Ack = Message<"flaggeo.v1.Ack"> & {
  * Use `create(AckSchema)` to create a new message.
  */
 export const AckSchema: GenMessage<Ack> = /*@__PURE__*/
-  messageDesc(file_flaggeo_v1_flaggeo, 52);
+  messageDesc(file_flaggeo_v1_flaggeo, 54);
 
 /**
  * @generated from service flaggeo.v1.AuthService
@@ -1463,6 +1508,19 @@ export const RoomService: GenService<{
     methodKind: "unary";
     input: typeof GetLeaderboardRequestSchema;
     output: typeof GetLeaderboardResponseSchema;
+  },
+  /**
+   * Open the browse-view push stream: an initial rooms + leaderboard snapshot,
+   * then a fresh ListRoomsResponse / GetLeaderboardResponse whenever either
+   * changes. Replaces the client's periodic ListRooms poll. Session token in
+   * metadata, same as the unary RoomService RPCs.
+   *
+   * @generated from rpc flaggeo.v1.RoomService.WatchLobby
+   */
+  watchLobby: {
+    methodKind: "server_streaming";
+    input: typeof WatchLobbyRequestSchema;
+    output: typeof LobbyEventSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_flaggeo_v1_flaggeo, 1);

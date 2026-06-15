@@ -1,6 +1,13 @@
 //! RoomService: room list/create/join and the leaderboard. Ports the old REST
 //! `GET|POST /rooms`, `/rooms/{code}/join` and `/leaderboard` handlers. The
 //! session token rides in `authorization` metadata.
+use std::pin::Pin;
+use std::time::Duration;
+
+use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
 use crate::auth::{self, SessionClaims};
@@ -8,13 +15,35 @@ use crate::error::AppError;
 use crate::pb::room_service_server::{RoomService, RoomServiceServer};
 use crate::pb::{
     CreateRoomRequest, CreateRoomResponse, GetLeaderboardRequest, GetLeaderboardResponse,
-    JoinRoomRequest, JoinRoomResponse, ListRoomsRequest, ListRoomsResponse,
+    JoinRoomRequest, JoinRoomResponse, ListRoomsRequest, ListRoomsResponse, LobbyEvent,
+    RoomSummary, WatchLobbyRequest,
 };
 use crate::room::{next_player_id, Command};
 use crate::state::AppState;
 use crate::validate;
 
 use super::{rate_limit, session_claims};
+
+/// Coalesce a burst of change pings: wait a beat, then swallow any further ticks
+/// queued meanwhile so one recompute covers the whole burst.
+const LOBBY_DEBOUNCE: Duration = Duration::from_millis(250);
+
+type LobbyStream = Pin<Box<dyn Stream<Item = Result<LobbyEvent, Status>> + Send + 'static>>;
+
+/// The public room list as wire `RoomSummary`s (comparable for change dedupe).
+async fn current_rooms(st: &AppState) -> Vec<RoomSummary> {
+    st.rooms.list().await.into_iter().map(Into::into).collect()
+}
+
+fn rooms_event(rooms: Vec<RoomSummary>) -> LobbyEvent {
+    use crate::pb::lobby_event::Payload;
+    LobbyEvent { payload: Some(Payload::Rooms(ListRoomsResponse { rooms })) }
+}
+
+fn leaderboard_event(top: Vec<crate::pb::LeaderboardRow>) -> LobbyEvent {
+    use crate::pb::lobby_event::Payload;
+    LobbyEvent { payload: Some(Payload::Leaderboard(GetLeaderboardResponse { top })) }
+}
 
 pub struct RoomSvc {
     st: AppState,
@@ -48,6 +77,8 @@ async fn seat_identity(
 
 #[tonic::async_trait]
 impl RoomService for RoomSvc {
+    type WatchLobbyStream = LobbyStream;
+
     async fn list_rooms(
         &self,
         req: Request<ListRoomsRequest>,
@@ -140,5 +171,80 @@ impl RoomService for RoomSvc {
         Ok(Response::new(GetLeaderboardResponse {
             top: top.into_iter().map(Into::into).collect(),
         }))
+    }
+
+    /// Browse-view push stream: an initial rooms + leaderboard snapshot, then a
+    /// fresh feed whenever either changes. Replaces the client's ListRooms poll.
+    async fn watch_lobby(
+        &self,
+        req: Request<WatchLobbyRequest>,
+    ) -> Result<Response<LobbyStream>, Status> {
+        session_claims(&self.st, &req)?; // any valid session
+
+        let st = self.st.clone();
+        // Subscribe *before* the initial snapshot so a change landing between the
+        // two can't be missed (it just produces a redundant ping we dedupe away).
+        let mut lobby_rx = st.rooms.subscribe_lobby();
+        let mut leaderboard_rx = st.rooms.subscribe_leaderboard();
+
+        let (out_tx, out_rx) = mpsc::channel::<Result<LobbyEvent, Status>>(16);
+
+        tokio::spawn(async move {
+            // Initial snapshot of both feeds.
+            let mut last_rooms = current_rooms(&st).await;
+            if out_tx.send(Ok(rooms_event(last_rooms.clone()))).await.is_err() {
+                return;
+            }
+            let mut last_top: Vec<crate::pb::LeaderboardRow> = match st.db.top_leaderboard(50).await {
+                Ok(rows) => rows.into_iter().map(Into::into).collect(),
+                Err(e) => {
+                    tracing::warn!("watch_lobby initial leaderboard failed: {e}");
+                    Vec::new()
+                }
+            };
+            if out_tx.send(Ok(leaderboard_event(last_top.clone()))).await.is_err() {
+                return;
+            }
+
+            loop {
+                tokio::select! {
+                    r = lobby_rx.recv() => match r {
+                        Ok(()) | Err(RecvError::Lagged(_)) => {
+                            tokio::time::sleep(LOBBY_DEBOUNCE).await;
+                            while lobby_rx.try_recv().is_ok() {} // drain the burst
+                            let rooms = current_rooms(&st).await;
+                            if rooms != last_rooms {
+                                last_rooms = rooms.clone();
+                                if out_tx.send(Ok(rooms_event(rooms))).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                        Err(RecvError::Closed) => break,
+                    },
+                    r = leaderboard_rx.recv() => match r {
+                        Ok(()) | Err(RecvError::Lagged(_)) => {
+                            while leaderboard_rx.try_recv().is_ok() {}
+                            match st.db.top_leaderboard(50).await {
+                                Ok(rows) => {
+                                    let top: Vec<crate::pb::LeaderboardRow> =
+                                        rows.into_iter().map(Into::into).collect();
+                                    if top != last_top {
+                                        last_top = top.clone();
+                                        if out_tx.send(Ok(leaderboard_event(top))).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(e) => tracing::warn!("watch_lobby leaderboard refresh failed: {e}"),
+                            }
+                        }
+                        Err(RecvError::Closed) => break,
+                    },
+                }
+            }
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(out_rx))))
     }
 }

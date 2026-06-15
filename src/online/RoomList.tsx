@@ -13,7 +13,8 @@ import { Leaderboard } from './Leaderboard';
 export function RoomList() {
   const language = useSettings((s) => s.language);
   const { nickname, avatar, account, rooms, status, error } = useOnline();
-  const refreshRooms = useOnline((s) => s.refreshRooms);
+  const watchLobby = useOnline((s) => s.watchLobby);
+  const stopLobbyWatch = useOnline((s) => s.stopLobbyWatch);
   const createRoom = useOnline((s) => s.createRoom);
   const joinRoom = useOnline((s) => s.joinRoom);
   const disconnect = useOnline((s) => s.disconnect);
@@ -26,11 +27,12 @@ export function RoomList() {
   const [joinCode, setJoinCode] = useState('');
   const [joinPassword, setJoinPassword] = useState('');
 
+  // Live room list + leaderboard: the server pushes updates over a stream that
+  // stays open while this view is mounted (replacing the old 5s poll).
   useEffect(() => {
-    void refreshRooms();
-    const id = window.setInterval(() => void refreshRooms(), 5000);
-    return () => clearInterval(id);
-  }, [refreshRooms]);
+    watchLobby();
+    return () => stopLobbyWatch();
+  }, [watchLobby, stopLobbyWatch]);
 
   const busy = status === 'busy';
 
@@ -99,9 +101,6 @@ export function RoomList() {
 
           <div className="rooms-header">
             <h3>{t('rooms', language)}</h3>
-            <button className="btn ghost small" onClick={() => void refreshRooms()}>
-              {t('refresh', language)}
-            </button>
           </div>
           {rooms.length === 0 ? (
             <p className="muted">{t('noRooms', language)}</p>

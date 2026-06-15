@@ -10,7 +10,8 @@
 
 /// Bumped on any breaking protocol change; surfaced via GetInfo/GetVersion so a
 /// mismatched client can refuse to connect. v5: Connect/gRPC-Web + protobuf.
-pub const PROTOCOL_VERSION: u32 = 5;
+/// v6: RoomService.WatchLobby push stream for the browse view.
+pub const PROTOCOL_VERSION: u32 = 6;
 
 #[derive(Debug, Clone)]
 pub struct DifficultyFilter {

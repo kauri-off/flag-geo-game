@@ -14,7 +14,7 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rand::RngExt;
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 
 use crate::config::Config;
 use crate::db::Db;
@@ -82,6 +82,12 @@ pub struct RoomManager {
     config: Arc<Config>,
     db: Db,
     weak_self: Weak<RoomManager>,
+    /// "Dirty" pings for the browse-view push stream (RoomService.WatchLobby).
+    /// Coalescible signals, not a queue: a receiver only learns *that* the room
+    /// list / leaderboard changed and re-reads the current state. Send errors
+    /// (no subscribers) are ignored.
+    lobby_tick: broadcast::Sender<()>,
+    leaderboard_tick: broadcast::Sender<()>,
 }
 
 fn now_ms() -> i64 {
@@ -102,7 +108,30 @@ impl RoomManager {
             config,
             db,
             weak_self: weak.clone(),
+            lobby_tick: broadcast::channel(16).0,
+            leaderboard_tick: broadcast::channel(16).0,
         })
+    }
+
+    /// Signal that the public room list changed (room added/removed, player
+    /// count / phase / joinability shifted). Cheap and best-effort.
+    pub fn notify_lobby_dirty(&self) {
+        let _ = self.lobby_tick.send(());
+    }
+
+    /// Signal that the leaderboard changed (a match was just recorded).
+    pub fn notify_leaderboard_dirty(&self) {
+        let _ = self.leaderboard_tick.send(());
+    }
+
+    /// Subscribe to room-list change pings (for WatchLobby).
+    pub fn subscribe_lobby(&self) -> broadcast::Receiver<()> {
+        self.lobby_tick.subscribe()
+    }
+
+    /// Subscribe to leaderboard change pings (for WatchLobby).
+    pub fn subscribe_leaderboard(&self) -> broadcast::Receiver<()> {
+        self.leaderboard_tick.subscribe()
     }
 
     /// Create a room with the creator already seated as host. Returns the code.
@@ -172,6 +201,7 @@ impl RoomManager {
         tokio::spawn(room.run(cmd_rx));
 
         self.rooms.write().await.insert(code.clone(), handle);
+        self.notify_lobby_dirty();
         Ok(code)
     }
 
@@ -181,6 +211,7 @@ impl RoomManager {
 
     pub async fn remove(&self, code: &str) {
         self.rooms.write().await.remove(code);
+        self.notify_lobby_dirty();
     }
 
     /// Public, joinable rooms for the lobby list.
@@ -223,9 +254,12 @@ impl RoomManager {
                         }
                     }
                 }
-                for code in stale {
-                    self.rooms.write().await.remove(&code);
-                    tracing::info!(room = %code, "reaped idle room");
+                if !stale.is_empty() {
+                    for code in stale {
+                        self.rooms.write().await.remove(&code);
+                        tracing::info!(room = %code, "reaped idle room");
+                    }
+                    self.notify_lobby_dirty();
                 }
             }
         });

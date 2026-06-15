@@ -17,6 +17,8 @@ package flaggeo.v1;
 // Bumped on any breaking protocol change; surfaced via GetInfo/GetVersion so a
 // mismatched client can refuse to connect.
 //   v5: migrated from REST + JSON WebSocket to Connect/gRPC-Web + protobuf.
+//   v6: added RoomService.WatchLobby — the browse view now receives pushed room
+//       list / leaderboard updates instead of polling ListRooms.
 //
 // (Kept as a comment because proto3 has no top-level const; the value lives in
 // VersionInfo.protocol / ServerInfo.protocol, set server-side.)
@@ -205,11 +207,28 @@ message GetLeaderboardResponse {
   repeated LeaderboardRow top = 1;
 }
 
+message WatchLobbyRequest {}
+
+// Pushed whenever the lobby changes. Each event carries exactly one updated
+// feed; both are sent once on connect as the initial snapshot.
+message LobbyEvent {
+  oneof payload {
+    ListRoomsResponse rooms = 1;
+    GetLeaderboardResponse leaderboard = 2;
+  }
+}
+
 service RoomService {
   rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
   rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+
+  // Open the browse-view push stream: an initial rooms + leaderboard snapshot,
+  // then a fresh ListRoomsResponse / GetLeaderboardResponse whenever either
+  // changes. Replaces the client's periodic ListRooms poll. Session token in
+  // metadata, same as the unary RoomService RPCs.
+  rpc WatchLobby(WatchLobbyRequest) returns (stream LobbyEvent);
 }
 
 // ---------------------------------------------------------------------------
