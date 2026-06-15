@@ -40,6 +40,11 @@ export function RoomList() {
     void createRoom(DEFAULT_CONFIG, roomPassword.trim() || undefined);
   };
 
+  const canJoin = !busy && joinCode.length >= 4;
+  const onJoinKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && canJoin) void joinRoom(joinCode, joinPassword || undefined);
+  };
+
   return (
     <div className="room-browser">
       <div className="online-identity">
@@ -65,6 +70,9 @@ export function RoomList() {
               className="text-input"
               value={roomPassword}
               onChange={(e) => setRoomPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !busy) onCreate();
+              }}
             />
           </label>
           <button className="btn primary" disabled={busy} onClick={onCreate}>
@@ -82,6 +90,7 @@ export function RoomList() {
               maxLength={6}
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onKeyDown={onJoinKey}
             />
             <input
               type="password"
@@ -89,6 +98,7 @@ export function RoomList() {
               placeholder={t('roomPassword', language)}
               value={joinPassword}
               onChange={(e) => setJoinPassword(e.target.value)}
+              onKeyDown={onJoinKey}
             />
             <button
               className="btn"
@@ -145,6 +155,10 @@ function RoomCard({
           placeholder={t('roomPassword', language)}
           value={pw}
           onChange={(e) => setPw(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !busy && room.players < room.maxPlayers)
+              void onJoin(room.code, pw || undefined);
+          }}
         />
       )}
       <button

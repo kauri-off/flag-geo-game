@@ -27,6 +27,25 @@ export function ConnectPanel() {
 
   const busy = status === 'busy';
 
+  const canLogin = serverUrl.trim() && username.trim() && password && !busy;
+  const canRegister = serverUrl.trim() && username.trim() && password && avatar && !busy;
+  const canGuest = serverUrl.trim() && nickname.trim() && avatar && !busy;
+
+  // Enter in any field fires the active mode's primary action — but only when that
+  // action's enable condition is met, mirroring the button's disabled state.
+  const submit = () => {
+    if (mode === 'guest') {
+      if (canGuest) connect(serverPassword);
+    } else if (mode === 'login') {
+      if (canLogin) login(username, password);
+    } else if (canRegister) {
+      register(username, password, serverPassword);
+    }
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') submit();
+  };
+
   // A persisted session: offer to continue or sign out without re-entering creds.
   if (account && token) {
     return (
@@ -62,14 +81,11 @@ export function ConnectPanel() {
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
+        onKeyDown={onKey}
       />
       <small className="hint">{t('serverUrlHint', language)}</small>
     </label>
   );
-
-  const canLogin = serverUrl.trim() && username.trim() && password && !busy;
-  const canRegister = serverUrl.trim() && username.trim() && password && avatar && !busy;
-  const canGuest = serverUrl.trim() && nickname.trim() && avatar && !busy;
 
   return (
     <div className="online-connect panel">
@@ -99,6 +115,7 @@ export function ConnectPanel() {
               maxLength={20}
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              onKeyDown={onKey}
             />
           </label>
           <label className="field">
@@ -110,6 +127,7 @@ export function ConnectPanel() {
               className="text-input wide"
               value={serverPassword}
               onChange={(e) => setServerPassword(e.target.value)}
+              onKeyDown={onKey}
             />
           </label>
           <div className="field">
@@ -137,6 +155,7 @@ export function ConnectPanel() {
               spellCheck={false}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={onKey}
             />
           </label>
           <label className="field">
@@ -146,6 +165,7 @@ export function ConnectPanel() {
               className="text-input wide"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={onKey}
             />
           </label>
 
@@ -160,6 +180,7 @@ export function ConnectPanel() {
                   className="text-input wide"
                   value={serverPassword}
                   onChange={(e) => setServerPassword(e.target.value)}
+                  onKeyDown={onKey}
                 />
               </label>
               <div className="field">

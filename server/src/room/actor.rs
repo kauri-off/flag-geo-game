@@ -707,6 +707,7 @@ impl Room {
             .iter()
             .map(|p| FinalStanding {
                 player_id: p.id.clone(),
+                uid: p.uid,
                 nickname: p.nickname.clone(),
                 avatar: p.avatar.clone(),
                 score: p.score,

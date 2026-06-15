@@ -72,6 +72,9 @@ pub struct RoundPlayerResult {
 #[derive(Debug, Clone)]
 pub struct FinalStanding {
     pub player_id: String,
+    /// Account id for a registered player; `None` for a guest. Used to attribute
+    /// the result to an account on the all-time leaderboard (guests are excluded).
+    pub uid: Option<i64>,
     pub nickname: String,
     pub avatar: String,
     pub score: i32,

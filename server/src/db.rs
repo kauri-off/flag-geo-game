@@ -51,6 +51,7 @@ impl Db {
              CREATE TABLE IF NOT EXISTS results (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                  match_id INTEGER NOT NULL,
+                 uid INTEGER,
                  nickname TEXT NOT NULL,
                  avatar TEXT NOT NULL,
                  score INTEGER NOT NULL,
@@ -69,6 +70,17 @@ impl Db {
              );",
         )
         .map_err(|e| AppError::Internal(e.to_string()))?;
+        // Migration for databases created before results were attributed to an
+        // account. A duplicate-column error just means the column already exists.
+        if let Err(e) = conn.execute("ALTER TABLE results ADD COLUMN uid INTEGER", []) {
+            let already_exists = matches!(
+                &e,
+                rusqlite::Error::SqliteFailure(_, Some(msg)) if msg.contains("duplicate column")
+            );
+            if !already_exists {
+                return Err(AppError::Internal(e.to_string()));
+            }
+        }
         Ok(Db { conn: Arc::new(Mutex::new(conn)) })
     }
 
@@ -85,10 +97,13 @@ impl Db {
             )?;
             let match_id = tx.last_insert_rowid();
             for s in &standings {
+                // Only registered accounts count toward the all-time leaderboard;
+                // guests (uid = None) have no stable identity, so we skip them.
+                let Some(uid) = s.uid else { continue };
                 tx.execute(
-                    "INSERT INTO results (match_id, nickname, avatar, score, correct, rounds, played_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    rusqlite::params![match_id, s.nickname, s.avatar, s.score, s.correct, s.rounds, played_at],
+                    "INSERT INTO results (match_id, uid, nickname, avatar, score, correct, rounds, played_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    rusqlite::params![match_id, uid, s.nickname, s.avatar, s.score, s.correct, s.rounds, played_at],
                 )?;
             }
             tx.commit()
@@ -180,25 +195,27 @@ impl Db {
         .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    /// Each player's cumulative all-time score, highest first (one row per name).
+    /// Each registered account's cumulative all-time score, highest first (one row
+    /// per account). Guests have no stable identity and are never recorded, so they
+    /// never appear here. The displayed name and avatar are the account's current
+    /// ones, joined live from `users`.
     pub async fn top_leaderboard(&self, limit: u32) -> Result<Vec<LeaderboardRow>, AppError> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || -> rusqlite::Result<Vec<LeaderboardRow>> {
             let c = conn.lock().expect("db mutex poisoned");
-            // Sum every match for a name (case-insensitive). The avatar is taken
-            // from that name's most recent match so it tracks their latest flag.
+            // Sum every match for an account. The INNER JOIN drops any legacy rows
+            // with a NULL uid (recorded before results were account-bound).
             let mut stmt = c.prepare(
-                "SELECT r.nickname,
-                        (SELECT avatar FROM results r2
-                           WHERE r2.nickname = r.nickname COLLATE NOCASE
-                           ORDER BY r2.played_at DESC LIMIT 1) AS avatar,
+                "SELECT u.username,
+                        u.avatar,
                         SUM(r.score) AS score,
                         SUM(r.correct) AS correct,
                         SUM(r.rounds) AS rounds,
                         COUNT(*) AS games,
                         MAX(r.played_at) AS played_at
                  FROM results r
-                 GROUP BY r.nickname COLLATE NOCASE
+                 JOIN users u ON u.id = r.uid
+                 GROUP BY r.uid
                  ORDER BY score DESC, played_at DESC LIMIT ?1",
             )?;
             let rows = stmt
