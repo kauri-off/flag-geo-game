@@ -1,27 +1,32 @@
 //! Flag Geo dedicated multiplayer server.
 //!
-//! REST for discovery/auth/room management, WebSocket for live room play. The
-//! server is authoritative for the flag sequence, round timing, correctness and
-//! scoring; clients only render and submit a chosen country.
+//! A single Connect / gRPC-Web endpoint (tonic + tonic-web over HTTP/1.1) serves
+//! three services: AuthService (discovery/auth/accounts), RoomService (room
+//! list/create/join + leaderboard) and GameService (the live room/match loop —
+//! a server-streaming `PlayEvents` plus unary action RPCs). The server is
+//! authoritative for the flag sequence, round timing, correctness and scoring;
+//! clients only render and submit a chosen country.
 mod auth;
 mod config;
 mod db;
 mod error;
 mod game;
-mod http;
+mod grpc;
+mod pb;
+mod protocol;
 mod rate_limit;
 mod room;
 mod state;
 mod validate;
-mod ws;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::http::{header, HeaderValue, Method};
-use axum::Router;
+use http::header::{HeaderName, AUTHORIZATION, CONTENT_TYPE};
+use http::{HeaderValue, Method};
+use tonic::transport::Server;
+use tonic_web::GrpcWebLayer;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
-use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 use crate::db::Db;
@@ -43,26 +48,24 @@ async fn main() -> anyhow::Result<()> {
         config: config.clone(),
         rooms,
         db,
-        // Generous per-IP REST budget: ~10 req/s sustained, burst of 60.
+        // Generous per-IP budget for unary calls: ~10 req/s sustained, burst of 60.
         rest_limiter: Arc::new(KeyedLimiter::new(60.0, 10.0)),
     };
 
-    let app = Router::new()
-        .merge(http::router())
-        .merge(ws::router())
-        .layer(build_cors(&config))
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
-
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(
         "Flag Geo server listening on {addr} (auth_required={})",
         config.auth_required()
     );
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
+    Server::builder()
+        .accept_http1(true)
+        .layer(build_cors(&config))
+        .layer(GrpcWebLayer::new())
+        .add_service(grpc::auth_server(state.clone()))
+        .add_service(grpc::room_server(state.clone()))
+        .add_service(grpc::game_server(state.clone()))
+        .serve_with_shutdown(addr, shutdown_signal())
         .await?;
     Ok(())
 }
@@ -73,10 +76,25 @@ fn init_tracing() {
     fmt().with_env_filter(filter).init();
 }
 
+/// CORS for browser gRPC-Web: allow the Connect/gRPC-Web request + preflight
+/// headers and expose the gRPC trailers the client reads for status.
 fn build_cors(config: &Config) -> CorsLayer {
     let base = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([
+            CONTENT_TYPE,
+            AUTHORIZATION,
+            HeaderName::from_static("x-grpc-web"),
+            HeaderName::from_static("x-user-agent"),
+            HeaderName::from_static("grpc-timeout"),
+            HeaderName::from_static("connect-protocol-version"),
+            HeaderName::from_static("connect-timeout-ms"),
+        ])
+        .expose_headers([
+            HeaderName::from_static("grpc-status"),
+            HeaderName::from_static("grpc-message"),
+            HeaderName::from_static("grpc-status-details-bin"),
+        ]);
 
     if config.cors_origins.iter().any(|o| o == "*") {
         return base.allow_origin(Any);

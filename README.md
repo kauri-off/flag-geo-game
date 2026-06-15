@@ -65,28 +65,32 @@ Then in the game's Online tab, enter `http://localhost:8080`.
   the `world-atlas` TopoJSON.
 - **flag-icons** for flag SVGs; **world-countries** for ISO codes, areas,
   regions and localized names.
-- **Vite** + **TypeScript** for the web app.
-- **Rust** (axum, tokio, rusqlite) for the optional online server. The wire
-  protocol is defined once in Rust and exported to TypeScript with **ts-rs**, so
-  client and server types can't drift.
+- **Vite** + **TypeScript** for the web app; **Connect / gRPC-Web**
+  (`@connectrpc/connect-web`) is the online transport.
+- **Rust** (tonic, tonic-web, tokio, rusqlite) for the optional online server.
+  The wire protocol is a single **protobuf** contract in `proto/`, compiled to
+  Rust (prost/tonic) and TypeScript (buf), so client and server types can't drift.
 
 ## Project layout
 
 ```
+proto/                  The protobuf wire contract (source of truth for both sides)
 scripts/                Build-time codegen (data, server data, protocol)
 src/
   components/           Map, flag, prompt, controls, stats, feedback
   screens/              Game, Challenge, Online, History, Settings
   store/                Zustand stores (game, settings, history, ui, online)
   game/                 Mode registry, country pool, flag twins, sound, stats
-  online/               REST + WebSocket clients, generated protocol types, online UI
+  online/               Connect clients + event stream, generated protocol types, online UI
+  online/gen/           Generated TypeScript protocol types (buf)
   data/                 Generated country metadata + loader
   i18n/                 Localized country names + UI strings (en, ru)
   map/                  World TopoJSON loading
   assets/               Bundled world TopoJSON
 server/                 Dedicated multiplayer server (Rust)
   src/game/             Country table + flag twins, generated from the client data
-  src/ws/protocol.rs    The wire contract (source of truth for the TS types)
+  src/grpc/             tonic services + protobuf<->domain conversion
+  src/protocol.rs       Internal domain types for the room actor
 ```
 
 The game loop (`src/store/gameStore.ts`) is renderer- and mode-agnostic. Online
@@ -110,7 +114,7 @@ npm run dev        # start the Vite dev server (http://localhost:5173)
 | ------------------------- | -------------------------------------------------------------------------- |
 | `npm run gen-data`        | Regenerate bundled data into `src/data`, `src/i18n/locales`, `src/assets`. |
 | `npm run gen-server-data` | Regenerate the server's country/flag-twin tables from the client data.     |
-| `npm run gen-protocol`    | Re-export the WebSocket/REST types from Rust into `src/online/` (ts-rs).    |
+| `npm run gen-protocol`    | Compile `proto/` into TypeScript types under `src/online/gen/` (buf).       |
 | `npm run dev`             | Vite dev server with hot reload.                                           |
 | `npm run build`           | Type-check and produce a production web build in `dist/`.                  |
 | `npm run preview`         | Serve the production build locally.                                        |
@@ -134,4 +138,4 @@ file in `gen-data.mjs` and register it in `src/i18n/index.ts`.
 
 The server's copy of the country data (`server/src/game/`) is regenerated from
 these files with `npm run gen-server-data`, and the online protocol types
-(`src/online/bindings/`) from the Rust source with `npm run gen-protocol`.
+(`src/online/gen/`) from the `proto/` contract with `npm run gen-protocol`.

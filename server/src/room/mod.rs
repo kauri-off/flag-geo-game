@@ -19,7 +19,7 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 use crate::config::Config;
 use crate::db::Db;
 use crate::error::AppError;
-use crate::ws::protocol::{ClientMsg, RoomConfig, RoomSummary, ServerMsg};
+use crate::protocol::{ClientMsg, RoomConfig, RoomSummary, ServerMsg};
 
 /// Per-connection message sink owned by the actor.
 pub type Sink = mpsc::Sender<Arc<ServerMsg>>;

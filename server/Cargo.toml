@@ -6,11 +6,14 @@ description = "Dedicated multiplayer server for Flag Geo"
 license = "AGPL-3.0-only"
 
 [dependencies]
-axum = { version = "0.8.9", features = ["ws"] }
+tonic = "0.12.3"
+tonic-web = "0.12.3"
+prost = "0.13.4"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "net", "time", "signal", "sync"] }
+tokio-stream = "0.1.17"
 tower-http = { version = "0.6.11", features = ["cors", "trace"] }
+http = "1.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
 argon2 = { version = "0.5.3", features = ["std"] }
@@ -22,7 +25,10 @@ thiserror = "2.0.18"
 anyhow = "1.0.102"
 dotenvy = "0.15.7"
 futures-util = "0.3.32"
-ts-rs = "12.0.1"
+
+[build-dependencies]
+tonic-build = "0.12.3"
+protoc-bin-vendored = "3.1.0"
 
 [profile.release]
 strip = true

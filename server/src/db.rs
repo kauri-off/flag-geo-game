@@ -5,20 +5,16 @@
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
-use serde::Serialize;
-use ts_rs::TS;
 
 use crate::error::AppError;
-use crate::ws::protocol::FinalStanding;
+use crate::protocol::FinalStanding;
 
 #[derive(Clone)]
 pub struct Db {
     conn: Arc<Mutex<Connection>>,
 }
 
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "bindings/")]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct LeaderboardRow {
     pub nickname: String,
     pub avatar: String,

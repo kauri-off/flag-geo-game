@@ -1,0 +1,15 @@
+# The server image is built from the repo root (so build.rs can read ../proto).
+# Keep the context small — never ship host build output, deps, local data or
+# secrets into the image.
+node_modules
+dist
+build
+server/target
+server/bindings
+src/online/gen
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.env
+server/.env
+.git

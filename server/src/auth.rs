@@ -104,25 +104,6 @@ pub fn verify_room_token(cfg: &Config, token: &str) -> Result<RoomClaims, AppErr
     Ok(data.claims)
 }
 
-/// Verify the Bearer session token from an `Authorization` header.
-pub fn require_session(cfg: &Config, headers: &axum::http::HeaderMap) -> Result<(), AppError> {
-    session_claims(cfg, headers).map(|_| ())
-}
-
-/// Verify the Bearer session token and return its claims (incl. `uid`/`name`).
-pub fn session_claims(
-    cfg: &Config,
-    headers: &axum::http::HeaderMap,
-) -> Result<SessionClaims, AppError> {
-    let token = bearer(headers).ok_or(AppError::Unauthorized)?;
-    verify_session_token(cfg, &token)
-}
-
-pub fn bearer(headers: &axum::http::HeaderMap) -> Option<String> {
-    let h = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
-    h.strip_prefix("Bearer ").map(|s| s.trim().to_string())
-}
-
 /// Constant-time comparison for the (plaintext) server password.
 pub fn server_password_matches(expected: &str, supplied: &str) -> bool {
     let a = expected.as_bytes();

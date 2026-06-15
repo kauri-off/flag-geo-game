@@ -17,23 +17,37 @@ import {
   postJoin,
   postLogin,
   postRegister,
-  wsBase,
   type ServerInfo,
 } from '../online/rest';
 import { t } from '../i18n';
 import { useSettings } from './settingsStore';
-import { wsClose, wsConnect, wsSend } from '../online/wsClient';
-import type {
-  FinalStanding,
-  LeaderboardRow,
-  Player,
-  RoomConfig,
-  RoomInfo,
-  RoomSummary,
-  RoundPlayerResult,
-  ServerMsg,
-  Standing,
+import {
+  sendKickPlayer,
+  sendLeaveRoom,
+  sendStartMatch,
+  sendSubmitAnswer,
+  sendTransferHost,
+  sendUpdateConfig,
+  streamClose,
+  streamConnect,
+} from '../online/eventStream';
+import {
+  toFinalStanding,
+  toPlayer,
+  toRoomConfig,
+  toRoomInfo,
+  toRoundPlayerResult,
+  toStanding,
+  type FinalStanding,
+  type LeaderboardRow,
+  type Player,
+  type RoomConfig,
+  type RoomInfo,
+  type RoomSummary,
+  type RoundPlayerResult,
+  type Standing,
 } from '../online/protocol';
+import type { ServerEvent } from '../online/gen/flaggeo/v1/flaggeo_pb';
 
 /** Reverse map: flag alpha-2 -> numeric country id (each flag is one country). */
 const idByAlpha2 = new Map(countries.map((c) => [c.alpha2, c.id]));
@@ -103,7 +117,7 @@ export interface OnlineState {
   submitAnswer: (roundIndex: number, countryId: string) => void;
   leaveRoom: () => void;
   backToLobby: () => void;
-  handleServerMsg: (msg: ServerMsg) => void;
+  handleServerMsg: (event: ServerEvent) => void;
 }
 
 export const useOnline = create<OnlineState>()(
@@ -203,7 +217,7 @@ export const useOnline = create<OnlineState>()(
       },
 
       logout: () => {
-        wsClose();
+        streamClose();
         useGame.getState().setOnline(false);
         set({
           view: 'connect',
@@ -228,7 +242,7 @@ export const useOnline = create<OnlineState>()(
       },
 
       disconnect: () => {
-        wsClose();
+        streamClose();
         useGame.getState().setOnline(false);
         set({
           view: 'connect',
@@ -296,20 +310,19 @@ export const useOnline = create<OnlineState>()(
         }
       },
 
-      updateConfig: (config) => wsSend({ type: 'updateConfig', config }),
+      updateConfig: (config) => sendUpdateConfig(config),
 
-      transferHost: (playerId) => wsSend({ type: 'transferHost', playerId }),
+      transferHost: (playerId) => sendTransferHost(playerId),
 
-      kickPlayer: (playerId) => wsSend({ type: 'kickPlayer', playerId }),
+      kickPlayer: (playerId) => sendKickPlayer(playerId),
 
-      startMatch: () => wsSend({ type: 'startMatch' }),
+      startMatch: () => sendStartMatch(),
 
-      submitAnswer: (roundIndex, countryId) =>
-        wsSend({ type: 'submitAnswer', roundIndex, countryId }),
+      submitAnswer: (roundIndex, countryId) => sendSubmitAnswer(roundIndex, countryId),
 
       leaveRoom: () => {
-        wsSend({ type: 'leaveRoom' });
-        wsClose();
+        sendLeaveRoom();
+        streamClose();
         useGame.getState().setOnline(false);
         set({ view: 'browse', ...clearedRoom() });
         void get().refreshRooms();
@@ -392,16 +405,15 @@ function clearedRoom(): Partial<OnlineState> {
 
 function enterRoom(set: Set, get: Get, roomToken: string, playerId: string) {
   set({ ...clearedRoom(), roomToken, selfId: playerId, view: 'room', status: 'connecting' });
-  // Wire the board's confirm() to submit answers over this room's socket.
+  // Wire the board's confirm() to submit answers over this room's stream.
   useGame.getState().setOnline(true, (i, c) => get().submitAnswer(i, c));
   // Tracks whether this room ever handshaked. A close before any Welcome means the
   // token/room is stale (gone or expired) — bail to the browser instead of looping.
   let gotWelcome = false;
-  const url = `${wsBase(get().serverUrl)}/ws?token=${encodeURIComponent(roomToken)}`;
-  wsConnect(url, {
-    onMessage: (m) => {
-      if (m.type === 'welcome') gotWelcome = true;
-      get().handleServerMsg(m);
+  streamConnect(normalizeBase(get().serverUrl), roomToken, {
+    onEvent: (event) => {
+      if (event.payload.case === 'welcome') gotWelcome = true;
+      get().handleServerMsg(event);
     },
     onStatus: (status) => {
       if (status === 'closed' && !gotWelcome) {
@@ -414,36 +426,39 @@ function enterRoom(set: Set, get: Get, roomToken: string, playerId: string) {
   });
 }
 
-/** Tear down the socket and drop the (now stale) room, returning to the browser. */
+/** Tear down the stream and drop the (now stale) room, returning to the browser. */
 function bailToBrowse(set: Set, get: Get, error: string | null) {
-  wsClose();
+  streamClose();
   useGame.getState().setOnline(false);
   set({ view: 'browse', error, ...clearedRoom() });
   void get().refreshRooms();
 }
 
-function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
-  switch (msg.type) {
+function applyServerMsg(set: Set, get: Get, event: ServerEvent) {
+  const p = event.payload;
+  switch (p.case) {
     case 'welcome': {
       set({
-        selfId: msg.playerId,
-        room: msg.room,
-        players: msg.players,
-        phase: msg.phase,
+        selfId: p.value.playerId,
+        room: toRoomInfo(p.value.room),
+        players: p.value.players.map(toPlayer),
+        phase: p.value.phase,
       });
       break;
     }
     case 'playerJoined': {
-      const players = upsert(get().players, msg.player);
+      if (!p.value.player) break;
+      const players = upsert(get().players, toPlayer(p.value.player));
       set({ players });
       break;
     }
     case 'playerLeft': {
-      set({ players: get().players.filter((p) => p.id !== msg.playerId) });
+      const playerId = p.value.playerId;
+      set({ players: get().players.filter((pl) => pl.id !== playerId) });
       break;
     }
     case 'kicked': {
-      wsClose();
+      streamClose();
       useGame.getState().setOnline(false);
       set({
         view: 'browse',
@@ -454,63 +469,60 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
       break;
     }
     case 'profileUpdated': {
+      const { playerId, nickname, avatar } = p.value;
       set({
-        players: get().players.map((p) =>
-          p.id === msg.playerId ? { ...p, nickname: msg.nickname, avatar: msg.avatar } : p,
+        players: get().players.map((pl) =>
+          pl.id === playerId ? { ...pl, nickname, avatar } : pl,
         ),
       });
       break;
     }
     case 'configUpdated': {
       const room = get().room;
-      if (room) set({ room: { ...room, config: msg.config } });
+      if (room) set({ room: { ...room, config: toRoomConfig(p.value.config) } });
       break;
     }
     case 'hostChanged': {
       const room = get().room;
-      if (room) set({ room: { ...room, hostId: msg.hostId } });
+      if (room) set({ room: { ...room, hostId: p.value.hostId } });
       break;
     }
     case 'countdown': {
-      set({ phase: 'countdown', countdown: msg.seconds, matchResult: null });
+      set({ phase: 'countdown', countdown: p.value.seconds, matchResult: null });
       break;
     }
     case 'roundStart': {
+      const { index, total, alpha2, deadlineMs } = p.value;
       set({
         phase: 'inRound',
         countdown: null,
-        round: {
-          index: msg.index,
-          total: msg.total,
-          alpha2: msg.alpha2,
-          deadlineMs: msg.deadlineMs,
-        },
+        round: { index, total, alpha2, deadlineMs },
         lastResult: null,
         intermissionUntil: null,
       });
       useGame.getState().setOnlineRound({
-        index: msg.index,
-        alpha2: msg.alpha2,
-        targetId: idByAlpha2.get(msg.alpha2) ?? '',
+        index,
+        alpha2,
+        targetId: idByAlpha2.get(alpha2) ?? '',
         timeLimitSec: get().room?.config.timeLimitSec ?? 0,
       });
       break;
     }
     case 'scoreboard': {
-      set({ standings: msg.standings });
+      set({ standings: p.value.standings.map(toStanding) });
       break;
     }
     case 'roundResult': {
+      const results = p.value.results.map(toRoundPlayerResult);
       set({
         phase: 'intermission',
-        lastResult: { index: msg.index, targetId: msg.targetId, results: msg.results },
-        intermissionUntil: Date.now() + msg.intermissionMs,
+        lastResult: { index: p.value.index, targetId: p.value.targetId, results },
+        intermissionUntil: Date.now() + p.value.intermissionMs,
       });
-      const mine = get().selfId
-        ? msg.results.find((r) => r.playerId === get().selfId)
-        : undefined;
+      const selfId = get().selfId;
+      const mine = selfId ? results.find((r) => r.playerId === selfId) : undefined;
       useGame.getState().applyOnlineResult({
-        targetId: msg.targetId,
+        targetId: p.value.targetId,
         correct: mine?.correct ?? false,
         timeMs: mine?.timeMs ?? 0,
         timedOut: mine ? mine.pickedId == null : true,
@@ -520,7 +532,10 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
     case 'matchResult': {
       set({
         phase: 'finished',
-        matchResult: { standings: msg.standings, winnerId: msg.winnerId ?? null },
+        matchResult: {
+          standings: p.value.standings.map(toFinalStanding),
+          winnerId: p.value.winnerId ?? null,
+        },
         round: null,
         intermissionUntil: null,
       });
@@ -543,16 +558,16 @@ function applyServerMsg(set: Set, get: Get, msg: ServerMsg) {
     case 'error': {
       // The server rejected our room token (e.g. the slot was dropped after the
       // reconnect grace expired). The seat is gone — return to the browser.
-      if (msg.code === 'BAD_TOKEN') {
+      if (p.value.code === 'BAD_TOKEN') {
         bailToBrowse(set, get, t('connectionLost', useSettings.getState().language));
         break;
       }
-      set({ error: `${msg.message}` });
+      set({ error: `${p.value.message}` });
       break;
     }
-    case 'pong':
     case 'answerAck':
     case 'chat':
+    case undefined:
       break;
   }
 }

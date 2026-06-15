@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 use super::{map_ids, Country, COUNTRIES};
-use crate::ws::protocol::DifficultyFilter;
+use crate::protocol::DifficultyFilter;
 
 /// Area thresholds (km²) for the "by size" filter — must match
 /// src/data/countries.ts SIZE_THRESHOLDS.

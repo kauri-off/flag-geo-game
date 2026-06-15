@@ -1,9 +1,8 @@
-//! Single error type for HTTP handlers. Every fallible path returns `AppError`
-//! instead of panicking, so a bad request can never take the process down.
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde_json::json;
+//! Single error type for the service handlers. Every fallible path returns
+//! `AppError` instead of panicking, so a bad request can never take the process
+//! down. Converts into a `tonic::Status` (the gRPC/Connect error) at the RPC
+//! boundary; the human message rides along for the client to display.
+use tonic::{Code, Status};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -22,27 +21,23 @@ pub enum AppError {
 }
 
 impl AppError {
-    fn parts(&self) -> (StatusCode, &'static str) {
+    fn code(&self) -> Code {
         match self {
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED"),
-            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BAD_REQUEST"),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NOT_FOUND"),
-            AppError::Conflict(_) => (StatusCode::CONFLICT, "CONFLICT"),
-            AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED"),
-            AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL"),
+            AppError::Unauthorized => Code::Unauthenticated,
+            AppError::BadRequest(_) => Code::InvalidArgument,
+            AppError::NotFound(_) => Code::NotFound,
+            AppError::Conflict(_) => Code::FailedPrecondition,
+            AppError::RateLimited => Code::ResourceExhausted,
+            AppError::Internal(_) => Code::Internal,
         }
     }
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let (status, code) = self.parts();
-        if status == StatusCode::INTERNAL_SERVER_ERROR {
-            tracing::error!("internal error: {self}");
+impl From<AppError> for Status {
+    fn from(err: AppError) -> Status {
+        if matches!(err, AppError::Internal(_)) {
+            tracing::error!("internal error: {err}");
         }
-        let body = Json(json!({ "error": self.to_string(), "code": code }));
-        (status, body).into_response()
+        Status::new(err.code(), err.to_string())
     }
 }
-
-pub type AppResult<T> = Result<T, AppError>;

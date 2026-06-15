@@ -1,0 +1,10 @@
+# Generates the client's TypeScript protocol types + service descriptors from the
+# shared contract in proto/. Run via `npm run gen-protocol` (= `buf generate`).
+# protoc-gen-es v2 emits both message types and the `GenService` descriptors used
+# by @connectrpc/connect's createClient — no separate connect plugin is needed.
+version: v2
+plugins:
+  - local: protoc-gen-es
+    out: src/online/gen
+    opt:
+      - target=ts

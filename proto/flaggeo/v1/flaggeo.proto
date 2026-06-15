@@ -1,0 +1,333 @@
+syntax = "proto3";
+
+// The wire contract between the Flag Geo client and server. This .proto is the
+// single source of truth: `server/build.rs` compiles it into Rust (prost +
+// tonic), and `npm run gen-protocol` (buf) compiles it into TypeScript
+// (@bufbuild/protobuf + @connectrpc/connect). The two sides cannot drift.
+//
+// The transport is Connect / gRPC-Web over HTTP/1.1 (tonic-web server,
+// @connectrpc/connect-web client). Because browsers cannot do gRPC
+// client-/bidi-streaming, the old bidirectional WebSocket is expressed as one
+// server-streaming RPC (GameService.PlayEvents) plus unary action RPCs. Player
+// and room identity travel as an `authorization: Bearer <token>` metadata header
+// on every call (the session token for AuthService/RoomService; the room token
+// for GameService), replacing the WebSocket's `Hello{roomToken}` handshake.
+package flaggeo.v1;
+
+// Bumped on any breaking protocol change; surfaced via GetInfo/GetVersion so a
+// mismatched client can refuse to connect.
+//   v5: migrated from REST + JSON WebSocket to Connect/gRPC-Web + protobuf.
+//
+// (Kept as a comment because proto3 has no top-level const; the value lives in
+// VersionInfo.protocol / ServerInfo.protocol, set server-side.)
+
+// ---------------------------------------------------------------------------
+// Shared value types (mirror server/src/room/messages.rs domain structs).
+// ---------------------------------------------------------------------------
+
+message DifficultyFilter {
+  // Allowed continents; empty = all.
+  repeated string continents = 1;
+  // "all" | "small" | "medium" | "large".
+  string size = 2;
+  // "un" | "all"; absent/empty treated as "all".
+  optional string scope = 3;
+}
+
+message RoomConfig {
+  uint32 rounds = 1;
+  // Seconds per answer; 0 = no limit (a server cap still applies).
+  uint32 time_limit_sec = 2;
+  // Guesses allowed per round before it locks; 1 = single guess.
+  uint32 attempts = 3;
+  DifficultyFilter difficulty = 4;
+  // When true, only logged-in players may join, and kicks become a room ban.
+  bool registered_only = 5;
+}
+
+message Player {
+  string id = 1;
+  string nickname = 2;
+  // ISO alpha-2 of the flag used as the avatar.
+  string avatar = 3;
+  int32 score = 4;
+  bool connected = 5;
+}
+
+message RoomInfo {
+  string code = 1;
+  RoomConfig config = 2;
+  string host_id = 3;
+}
+
+message Standing {
+  string player_id = 1;
+  int32 score = 2;
+  bool answered = 3;
+}
+
+message RoundPlayerResult {
+  string player_id = 1;
+  bool correct = 2;
+  int32 time_ms = 3;
+  int32 points = 4;
+  optional string picked_id = 5;
+}
+
+message FinalStanding {
+  string player_id = 1;
+  string nickname = 2;
+  string avatar = 3;
+  int32 score = 4;
+  uint32 correct = 5;
+  uint32 rounds = 6;
+}
+
+// One row of the public room list.
+message RoomSummary {
+  string code = 1;
+  string host = 2;
+  uint32 players = 3;
+  uint32 max_players = 4;
+  string phase = 5;
+  bool has_password = 6;
+}
+
+message LeaderboardRow {
+  string nickname = 1;
+  string avatar = 2;
+  int32 score = 3;
+  int32 correct = 4;
+  int32 rounds = 5;
+  int32 games = 6;
+  // Epoch millis of the most recent match.
+  double played_at = 7;
+}
+
+// ---------------------------------------------------------------------------
+// AuthService — discovery, auth, accounts (replaces /info /version /auth
+// /register /login). All unary.
+// ---------------------------------------------------------------------------
+
+message GetInfoRequest {}
+
+message ServerInfo {
+  string name = 1;
+  bool auth_required = 2;
+  bool guests_allowed = 3;
+  uint32 max_players = 4;
+  uint32 protocol = 5;
+  bool registration_enabled = 6;
+}
+
+message GetVersionRequest {}
+
+message VersionInfo {
+  string version = 1;
+  uint32 protocol = 2;
+}
+
+message AuthRequest {
+  optional string password = 1;
+}
+
+message AuthResponse {
+  string token = 1;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string avatar = 3;
+  optional string server_password = 4;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+// Returned by Register/Login.
+message AuthedAccount {
+  string token = 1;
+  string username = 2;
+  string avatar = 3;
+}
+
+service AuthService {
+  rpc GetInfo(GetInfoRequest) returns (ServerInfo);
+  rpc GetVersion(GetVersionRequest) returns (VersionInfo);
+  rpc Auth(AuthRequest) returns (AuthResponse);
+  rpc Register(RegisterRequest) returns (AuthedAccount);
+  rpc Login(LoginRequest) returns (AuthedAccount);
+}
+
+// ---------------------------------------------------------------------------
+// RoomService — room discovery / create / join, leaderboard (replaces
+// GET|POST /rooms, /rooms/{code}/join, /leaderboard). Session token in
+// metadata. All unary.
+// ---------------------------------------------------------------------------
+
+message ListRoomsRequest {}
+
+message ListRoomsResponse {
+  repeated RoomSummary rooms = 1;
+}
+
+message CreateRoomRequest {
+  string nickname = 1;
+  string avatar = 2;
+  RoomConfig config = 3;
+  optional string room_password = 4;
+}
+
+message CreateRoomResponse {
+  string code = 1;
+  string room_token = 2;
+  string player_id = 3;
+}
+
+message JoinRoomRequest {
+  string code = 1;
+  string nickname = 2;
+  string avatar = 3;
+  optional string room_password = 4;
+}
+
+message JoinRoomResponse {
+  string room_token = 1;
+  string player_id = 2;
+}
+
+message GetLeaderboardRequest {}
+
+message GetLeaderboardResponse {
+  repeated LeaderboardRow top = 1;
+}
+
+service RoomService {
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+}
+
+// ---------------------------------------------------------------------------
+// GameService — the live room/match loop. PlayEvents is the server->client
+// stream (replacing the WebSocket receive side); the unary RPCs are the
+// client->server actions (replacing each ClientMsg). Room token in metadata.
+// ---------------------------------------------------------------------------
+
+// Server -> client events. `payload` is a oneof whose field names match the
+// old ServerMsg `type` tags so the client switch maps 1:1.
+message ServerEvent {
+  oneof payload {
+    Welcome welcome = 1;
+    PlayerJoined player_joined = 2;
+    PlayerLeft player_left = 3;
+    Kicked kicked = 4;
+    ProfileUpdated profile_updated = 5;
+    ConfigUpdated config_updated = 6;
+    HostChanged host_changed = 7;
+    Countdown countdown = 8;
+    RoundStart round_start = 9;
+    AnswerAck answer_ack = 10;
+    Scoreboard scoreboard = 11;
+    RoundResult round_result = 12;
+    MatchResult match_result = 13;
+    MatchAborted match_aborted = 14;
+    Chat chat = 15;
+    ErrorEvent error = 16;
+  }
+}
+
+// Full room snapshot, sent to a single connection on (re)join.
+message Welcome {
+  string player_id = 1;
+  RoomInfo room = 2;
+  repeated Player players = 3;
+  string phase = 4;
+}
+message PlayerJoined { Player player = 1; }
+message PlayerLeft { string player_id = 1; }
+// Sent to a player removed by the host; their client leaves the room.
+message Kicked {}
+message ProfileUpdated {
+  string player_id = 1;
+  string nickname = 2;
+  string avatar = 3;
+}
+message ConfigUpdated { RoomConfig config = 1; }
+message HostChanged { string host_id = 1; }
+message Countdown { uint32 seconds = 1; }
+message RoundStart {
+  uint32 index = 1;
+  uint32 total = 2;
+  string alpha2 = 3;
+  double deadline_ms = 4;
+}
+message AnswerAck {
+  uint32 round_index = 1;
+  bool accepted = 2;
+}
+message Scoreboard { repeated Standing standings = 1; }
+message RoundResult {
+  uint32 index = 1;
+  string target_id = 2;
+  repeated RoundPlayerResult results = 3;
+  // Pause before the next round (or final results) begins, in ms.
+  uint32 intermission_ms = 4;
+}
+message MatchResult {
+  repeated FinalStanding standings = 1;
+  optional string winner_id = 2;
+}
+// The match was stopped before finishing (too few players remained).
+message MatchAborted {}
+message Chat {
+  string player_id = 1;
+  string nickname = 2;
+  string text = 3;
+}
+message ErrorEvent {
+  string code = 1;
+  string message = 2;
+}
+
+// --- client -> server action requests (each replaces a ClientMsg) ---
+
+message PlayEventsRequest {}
+
+message SetProfileRequest {
+  string nickname = 1;
+  string avatar = 2;
+}
+message UpdateConfigRequest { RoomConfig config = 1; }
+message TransferHostRequest { string player_id = 1; }
+message KickPlayerRequest { string player_id = 1; }
+message StartMatchRequest {}
+message SubmitAnswerRequest {
+  uint32 round_index = 1;
+  string country_id = 2;
+}
+message SendChatRequest { string text = 1; }
+message LeaveRoomRequest {}
+
+// Empty acknowledgement returned by the action RPCs; soft acks/errors continue
+// to flow over the PlayEvents stream.
+message Ack {}
+
+service GameService {
+  // Open the server->client event stream. Opening it = the old Hello/Connect:
+  // the room token in metadata binds the stream to the reserved player slot.
+  rpc PlayEvents(PlayEventsRequest) returns (stream ServerEvent);
+
+  rpc SetProfile(SetProfileRequest) returns (Ack);
+  rpc UpdateConfig(UpdateConfigRequest) returns (Ack);
+  rpc TransferHost(TransferHostRequest) returns (Ack);
+  rpc KickPlayer(KickPlayerRequest) returns (Ack);
+  rpc StartMatch(StartMatchRequest) returns (Ack);
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (Ack);
+  rpc SendChat(SendChatRequest) returns (Ack);
+  rpc LeaveRoom(LeaveRoomRequest) returns (Ack);
+}

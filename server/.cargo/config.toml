@@ -1,7 +1,0 @@
-# ts-rs reads TS_RS_EXPORT_DIR and joins each type's `export_to = "bindings/"`
-# onto it. `relative = true` resolves this against the parent of the .cargo dir
-# (i.e. server/), so a plain `cargo test` writes the protocol bindings straight
-# into the client at ../src/online/bindings/. Keeps the client and server types
-# from ever drifting.
-[env]
-TS_RS_EXPORT_DIR = { value = "../src/online", relative = true }

@@ -11,7 +11,7 @@ use crate::db::Db;
 use crate::game::{self, Country};
 use crate::room::scoring::round_points;
 use crate::validate;
-use crate::ws::protocol::{
+use crate::protocol::{
     ClientMsg, FinalStanding, Player, RoomConfig, RoomInfo, RoundPlayerResult, ServerMsg, Standing,
 };
 
@@ -438,8 +438,6 @@ impl Room {
 
     async fn on_msg(&mut self, id: String, msg: ClientMsg) {
         match msg {
-            ClientMsg::Hello { .. } => {} // handled during the WS handshake, ignored here
-            ClientMsg::Ping => self.send_to(&id, ServerMsg::Pong),
             ClientMsg::LeaveRoom => self.leave(&id),
             ClientMsg::SetProfile { nickname, avatar } => self.set_profile(&id, nickname, avatar),
             ClientMsg::UpdateConfig { config } => self.update_config(&id, config),

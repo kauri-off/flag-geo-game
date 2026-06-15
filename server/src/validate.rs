@@ -94,8 +94,8 @@ pub fn room_password(raw: &str) -> Result<String, AppError> {
 
 /// Clamp a room config to safe bounds. Returns a sanitised copy.
 pub fn room_config(
-    mut cfg: crate::ws::protocol::RoomConfig,
-) -> Result<crate::ws::protocol::RoomConfig, AppError> {
+    mut cfg: crate::protocol::RoomConfig,
+) -> Result<crate::protocol::RoomConfig, AppError> {
     cfg.rounds = cfg.rounds.clamp(1, 100);
     cfg.time_limit_sec = cfg.time_limit_sec.min(60);
     cfg.attempts = cfg.attempts.clamp(1, 5);

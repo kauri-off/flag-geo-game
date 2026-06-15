@@ -1,17 +1,29 @@
-// Typed REST helpers for the online server. The base URL is whatever the player
-// typed in the Online tab (may include a subpath, e.g. https://host/flaggame);
-// all endpoints are appended to it.
-import type { RoomConfig, RoomSummary, LeaderboardRow } from './protocol';
+// Typed client helpers for the online server's unary RPCs (AuthService +
+// RoomService). These keep the same function shapes the online store already
+// calls, but now speak Connect/gRPC-Web (see ./transport) instead of REST+fetch,
+// and convert protobuf responses into the app's plain types (see ./protocol).
+import { Code, ConnectError } from '@connectrpc/connect';
+import {
+  toLeaderboardRow,
+  toRoomSummary,
+  type LeaderboardRow,
+  type RoomConfig,
+  type RoomSummary,
+} from './protocol';
+import { auth, authClient, normalizeBase, roomClient } from './transport';
 
-/** Protocol version this client speaks; must match the server's `/info`. */
-export const CLIENT_PROTOCOL = 4;
+export { normalizeBase };
+
+/** Protocol version this client speaks; must match the server's GetInfo. */
+export const CLIENT_PROTOCOL = 5;
 
 export interface ServerInfo {
   name: string;
   authRequired: boolean;
+  guestsAllowed: boolean;
   maxPlayers: number;
   protocol: number;
-  registrationEnabled?: boolean;
+  registrationEnabled: boolean;
 }
 
 export interface AuthedAccount {
@@ -20,68 +32,66 @@ export interface AuthedAccount {
   avatar: string;
 }
 
-/** Strip a trailing slash so `${base}/info` never doubles up. */
-export function normalizeBase(url: string): string {
-  return url.trim().replace(/\/+$/, '');
-}
-
-/** ws(s):// base derived from the http(s):// server URL. */
-export function wsBase(base: string): string {
-  return normalizeBase(base).replace(/^http/i, (m) => (m.toLowerCase() === 'http' ? 'ws' : m)).replace(/^https/i, 'wss');
-}
-
-async function request<T>(
-  base: string,
-  path: string,
-  init?: RequestInit & { token?: string },
-): Promise<T> {
-  const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };
-  if (init?.body) headers['content-type'] = 'application/json';
-  if (init?.token) headers['authorization'] = `Bearer ${init.token}`;
-
-  let res: Response;
+/** Run a client call, normalising Connect errors into plain Errors with a
+ *  human message (the store surfaces `.message` to the user). */
+async function call<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    res = await fetch(normalizeBase(base) + path, { ...init, headers });
-  } catch {
-    throw new Error('Could not reach the server. Check the URL and that it is running.');
-  }
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.error) message = body.error;
-    } catch {
-      /* non-JSON error body */
+    return await fn();
+  } catch (e) {
+    const err = ConnectError.from(e);
+    if (err.code === Code.Unavailable || err.code === Code.Unknown) {
+      throw new Error('Could not reach the server. Check the URL and that it is running.');
     }
-    throw new Error(message);
+    throw new Error(err.rawMessage || err.message);
   }
-  return res.json() as Promise<T>;
 }
 
 export function getInfo(base: string): Promise<ServerInfo> {
-  return request<ServerInfo>(base, '/info');
+  return call(async () => {
+    const r = await authClient(base).getInfo({});
+    return {
+      name: r.name,
+      authRequired: r.authRequired,
+      guestsAllowed: r.guestsAllowed,
+      maxPlayers: r.maxPlayers,
+      protocol: r.protocol,
+      registrationEnabled: r.registrationEnabled,
+    };
+  });
 }
 
 export function postAuth(base: string, password?: string): Promise<{ token: string }> {
-  return request(base, '/auth', { method: 'POST', body: JSON.stringify({ password }) });
+  return call(async () => {
+    const r = await authClient(base).auth({ password });
+    return { token: r.token };
+  });
 }
 
 export function postRegister(
   base: string,
   body: { username: string; password: string; avatar: string; serverPassword?: string },
 ): Promise<AuthedAccount> {
-  return request(base, '/register', { method: 'POST', body: JSON.stringify(body) });
+  return call(async () => {
+    const r = await authClient(base).register(body);
+    return { token: r.token, username: r.username, avatar: r.avatar };
+  });
 }
 
 export function postLogin(
   base: string,
   body: { username: string; password: string },
 ): Promise<AuthedAccount> {
-  return request(base, '/login', { method: 'POST', body: JSON.stringify(body) });
+  return call(async () => {
+    const r = await authClient(base).login(body);
+    return { token: r.token, username: r.username, avatar: r.avatar };
+  });
 }
 
 export function getRooms(base: string, token: string): Promise<{ rooms: RoomSummary[] }> {
-  return request(base, '/rooms', { token });
+  return call(async () => {
+    const r = await roomClient(base).listRooms({}, auth(token));
+    return { rooms: r.rooms.map(toRoomSummary) };
+  });
 }
 
 export interface CreateRoomReq {
@@ -96,7 +106,10 @@ export function postCreateRoom(
   token: string,
   body: CreateRoomReq,
 ): Promise<{ code: string; roomToken: string; playerId: string }> {
-  return request(base, '/rooms', { method: 'POST', token, body: JSON.stringify(body) });
+  return call(async () => {
+    const r = await roomClient(base).createRoom(body, auth(token));
+    return { code: r.code, roomToken: r.roomToken, playerId: r.playerId };
+  });
 }
 
 export function postJoin(
@@ -105,13 +118,15 @@ export function postJoin(
   code: string,
   body: { nickname: string; avatar: string; roomPassword?: string },
 ): Promise<{ roomToken: string; playerId: string }> {
-  return request(base, `/rooms/${encodeURIComponent(code)}/join`, {
-    method: 'POST',
-    token,
-    body: JSON.stringify(body),
+  return call(async () => {
+    const r = await roomClient(base).joinRoom({ code, ...body }, auth(token));
+    return { roomToken: r.roomToken, playerId: r.playerId };
   });
 }
 
 export function getLeaderboard(base: string): Promise<{ top: LeaderboardRow[] }> {
-  return request(base, '/leaderboard');
+  return call(async () => {
+    const r = await roomClient(base).getLeaderboard({});
+    return { top: r.top.map(toLeaderboardRow) };
+  });
 }
