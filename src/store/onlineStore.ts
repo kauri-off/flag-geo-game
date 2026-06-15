@@ -165,7 +165,7 @@ export const useOnline = create<OnlineState>()(
         try {
           const info = await checkServer(base);
           set({ serverInfo: info });
-          const { token } = await postAuth(base, password);
+          const { token } = await postAuth(base, password, get().nickname.trim());
           set({ token, account: null, status: 'idle', view: 'browse' });
           await get().refreshRooms();
         } catch (e) {

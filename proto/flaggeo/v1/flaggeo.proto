@@ -131,6 +131,9 @@ message VersionInfo {
 
 message AuthRequest {
   optional string password = 1;
+  // Guest's chosen nickname, so the server can reject one that already belongs
+  // to a registered account at connect time instead of waiting until room join.
+  optional string nickname = 2;
 }
 
 message AuthResponse {

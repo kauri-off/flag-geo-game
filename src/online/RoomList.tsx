@@ -24,6 +24,7 @@ export function RoomList() {
   const displayAvatar = account ? account.avatar : avatar;
 
   const [roomPassword, setRoomPassword] = useState('');
+  const [registeredOnly, setRegisteredOnly] = useState(DEFAULT_CONFIG.registeredOnly);
   const [joinCode, setJoinCode] = useState('');
   const [joinPassword, setJoinPassword] = useState('');
 
@@ -37,7 +38,7 @@ export function RoomList() {
   const busy = status === 'busy';
 
   const onCreate = () => {
-    void createRoom(DEFAULT_CONFIG, roomPassword.trim() || undefined);
+    void createRoom({ ...DEFAULT_CONFIG, registeredOnly }, roomPassword.trim() || undefined);
   };
 
   const canJoin = !busy && joinCode.length >= 4;
@@ -74,6 +75,17 @@ export function RoomList() {
                 if (e.key === 'Enter' && !busy) onCreate();
               }}
             />
+          </label>
+          <label className="field toggle-field">
+            <input
+              type="checkbox"
+              checked={registeredOnly}
+              onChange={(e) => setRegisteredOnly(e.target.checked)}
+            />
+            <span>
+              {t('registeredOnly', language)}
+              <small className="hint">{t('registeredOnlyHint', language)}</small>
+            </span>
           </label>
           <button className="btn primary" disabled={busy} onClick={onCreate}>
             {t('createRoom', language)}

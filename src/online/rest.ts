@@ -60,9 +60,13 @@ export function getInfo(base: string): Promise<ServerInfo> {
   });
 }
 
-export function postAuth(base: string, password?: string): Promise<{ token: string }> {
+export function postAuth(
+  base: string,
+  password?: string,
+  nickname?: string,
+): Promise<{ token: string }> {
   return call(async () => {
-    const r = await authClient(base).auth({ password });
+    const r = await authClient(base).auth({ password, nickname });
     return { token: r.token };
   });
 }

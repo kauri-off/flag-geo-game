@@ -62,6 +62,16 @@ impl AuthService for AuthSvc {
                 return Err(AppError::Unauthorized.into());
             }
         }
+        // Reject up front a guest name that belongs to a registered account, so
+        // the user gets immediate feedback rather than failing later at room join.
+        // (Room join still re-checks: the guest token carries no identity, so this
+        // is fail-fast UX, not the security boundary.)
+        if let Some(nick) = &body.nickname {
+            let nickname = validate::nickname(nick).map_err(Status::from)?;
+            if self.st.db.find_user(nickname).await.map_err(Status::from)?.is_some() {
+                return Err(AppError::Conflict("this name belongs to a registered account".into()).into());
+            }
+        }
         let token = auth::issue_session_token(&self.st.config).map_err(Status::from)?;
         Ok(Response::new(AuthResponse { token }))
     }
