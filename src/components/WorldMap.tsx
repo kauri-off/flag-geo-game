@@ -27,7 +27,13 @@ interface Transform {
 
 const MIN_K = 1;
 const MAX_K = 120;
-const LABEL_PX = 11; // on-screen label height in viewBox units
+const LABEL_PX = 11; // label height in viewBox units (its on-screen px = LABEL_PX × fit)
+// Floor for the label's actual on-screen height in CSS px. Labels are authored in
+// viewBox units, so their rendered size scales with the viewBox→element fit — on a
+// narrow phone that makes them tiny. We bump the size up when fit is small so a
+// label never renders below this, keeping mobile labels as readable as on a wide
+// desktop (where fit is large enough that LABEL_PX already exceeds this floor).
+const MIN_LABEL_PX = 12;
 
 // Label candidates, largest country first. Greedy declutter keeps the biggest
 // countries' labels and drops any that would overlap one already placed, so more
@@ -212,6 +218,53 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const hoverRef = useRef<string | null>(null);
 
+  // CSS px per viewBox unit (the xMidYMid-meet fit scale), tracked so label sizing
+  // can target a real on-screen pixel size. Updated on mount and whenever the SVG
+  // element resizes (viewport rotate/resize).
+  const [fitScale, setFitScale] = useState(0);
+  // The viewBox-coordinate rectangle actually visible in the element. With
+  // xMidYMid meet the [0,MAP_WIDTH]×[0,MAP_HEIGHT] viewBox is centered inside a
+  // larger visible area (the letterbox), so on a tall phone the visible Y range
+  // is far wider than [0,MAP_HEIGHT]. Labels must be culled against THIS, not the
+  // fixed viewBox — otherwise zooming in hides the labels of countries that have
+  // scrolled into the (visible) letterbox at the top and bottom.
+  const [viewBounds, setViewBounds] = useState({
+    minX: 0,
+    maxX: MAP_WIDTH,
+    minY: 0,
+    maxY: MAP_HEIGHT,
+  });
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const fit = Math.min(rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+      setFitScale(fit);
+      // Half of the visible viewBox extent beyond the nominal viewBox on each
+      // axis (0 on the fitted axis, positive on the letterboxed one).
+      const halfExtraX = (rect.width / fit - MAP_WIDTH) / 2;
+      const halfExtraY = (rect.height / fit - MAP_HEIGHT) / 2;
+      setViewBounds({
+        minX: -halfExtraX,
+        maxX: MAP_WIDTH + halfExtraX,
+        minY: -halfExtraY,
+        maxY: MAP_HEIGHT + halfExtraY,
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
+  // Effective label height in viewBox units. On a wide screen fit is large so this
+  // is just LABEL_PX; on a phone (small fit) it grows so the on-screen size stays
+  // at least MIN_LABEL_PX. Used for both the drawn font and the declutter boxes so
+  // overlap detection matches what's rendered.
+  const effLabelPx =
+    fitScale > 0 ? Math.max(LABEL_PX, MIN_LABEL_PX / fitScale) : LABEL_PX;
+
   const status = useGame((s) => s.status);
   const targetId = useGame((s) => s.targetId);
   const selectedId = useGame((s) => s.selectedId);
@@ -260,6 +313,41 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     guessable: false,
     scale: 1,
   });
+
+  // --- touch pinch-zoom ---
+  // All currently-down pointers (touch points / mouse) by id, in client px. A
+  // single entry pans (the `drag` path above); two entries pinch-zoom. Tracking
+  // every pointer here is what lets us detect the second finger landing and switch
+  // from pan to pinch (and back when one lifts).
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Active two-finger pinch. `dist0` is the finger spread at pinch start and
+  // `baseK` the zoom then, so the live scale is baseK * dist/dist0. `wx/wy` is the
+  // world point under the start midpoint, kept pinned under the moving midpoint so
+  // the pinch zooms about the fingers and pans with them — the native maps feel.
+  const pinch = useRef<{
+    dist0: number;
+    baseK: number;
+    wx: number;
+    wy: number;
+  } | null>(null);
+  // True (via ref) while a pinch owns the view, so renderTf below feeds the live
+  // transform to the <g> on any stray re-render instead of the frozen `tf`.
+  const pinchingRef = useRef(false);
+
+  // Client px → base (zoom-independent) world coords for the given transform,
+  // accounting for the viewBox→element fit (xMidYMid meet). Used to pin the world
+  // point under the pinch midpoint.
+  const clientToWorld = (clientX: number, clientY: number, tfm: Transform) => {
+    const rect = svgRef.current!.getBoundingClientRect();
+    const vx = ((clientX - rect.left) / rect.width) * MAP_WIDTH;
+    const vy = ((clientY - rect.top) / rect.height) * MAP_HEIGHT;
+    return {
+      vx,
+      vy,
+      wx: (vx - tfm.x) / tfm.k,
+      wy: (vy - tfm.y) / tfm.k,
+    };
+  };
 
   // The country id a tap at this client point would select, or null. Shared by
   // the click (pointerup) and the hover (pointermove) so the highlight always
@@ -358,6 +446,16 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     cancelAnim();
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Capture every pointer so a finger sliding off the map still feeds moves —
+    // essential for pinch, where both fingers must stay tracked. Guarded: capture
+    // can throw if the pointer is already gone, and that must never abort the
+    // pan/pinch setup below.
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released — capture is best-effort */
+    }
     // A press starts a drag/click — drop any hover highlight.
     hoverRef.current = null;
     setHoverId(null);
@@ -369,6 +467,32 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     // Freeze the target where the view currently sits so the (now stopped)
     // animator has nothing to drift toward while the user drags.
     targetRef.current = tfRef.current;
+
+    // Second finger down → start a pinch. Abandon any single-finger pan: fold its
+    // live CSS translate into the committed transform (clearing the translate and
+    // letting renderTf draw the <g> at tfRef.current is the same pixels) so the
+    // pinch begins from exactly where the map sits.
+    if (pointers.current.size === 2) {
+      drag.current.active = false;
+      const svg = svgRef.current;
+      if (svg) svg.style.transform = "";
+      const pts = [...pointers.current.values()];
+      const mx = (pts[0].x + pts[1].x) / 2;
+      const my = (pts[0].y + pts[1].y) / 2;
+      const { wx, wy } = clientToWorld(mx, my, tfRef.current);
+      pinch.current = {
+        dist0: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+        baseK: tfRef.current.k,
+        wx,
+        wy,
+      };
+      pinchingRef.current = true;
+      setDragging(true); // freeze the label declutter for the pinch
+      return;
+    }
+    // A third+ finger is ignored — the existing pinch keeps the first two.
+    if (pointers.current.size > 2) return;
+
     const el = e.target as Element;
     // With xMidYMid meet the viewBox is uniformly scaled to fit; the on-screen
     // size of one viewBox unit is min(rect.w/MAP_WIDTH, rect.h/MAP_HEIGHT).
@@ -389,9 +513,37 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       scale: fit > 0 ? 1 / fit : 1,
     };
     setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // Drive an active pinch: re-spread the two fingers to update the zoom and keep
+    // the start world point pinned under the (possibly moved) midpoint.
+    if (pinch.current && pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size < 2) return;
+      const pts = [...pointers.current.values()];
+      const mx = (pts[0].x + pts[1].x) / 2;
+      const my = (pts[0].y + pts[1].y) / 2;
+      const { vx, vy } = clientToWorld(mx, my, tfRef.current);
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const k = clampK(pinch.current.baseK * (dist / pinch.current.dist0));
+      const live = {
+        k,
+        x: vx - pinch.current.wx * k,
+        y: vy - pinch.current.wy * k,
+      };
+      tfRef.current = live;
+      targetRef.current = live;
+      const g = gRef.current;
+      if (g)
+        g.setAttribute(
+          "transform",
+          `translate(${live.x} ${live.y}) scale(${live.k})`,
+        );
+      // Rebase into state if the visible world-copy set changed, so the tiling
+      // refills (same transform the imperative attribute already holds).
+      if (!sameCopies(computeCopies(live), copiesRef.current)) setTf(live);
+      return;
+    }
     const d = drag.current;
     if (!d.active) {
       // No button down: track what a click here would select so we can highlight
@@ -450,6 +602,23 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     if (svg) svg.style.transform = `translate(${dxPx}px, ${dyPx}px)`;
   };
   const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
+    // Forget this pointer and release its capture (no-op for a bare pointerleave
+    // that never went down).
+    pointers.current.delete(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    // A finger lifted out of a pinch: commit the pinched view. We don't resume a
+    // pan from the remaining finger (it would jump) — the user simply lifts and
+    // touches again to pan.
+    if (pinch.current) {
+      pinch.current = null;
+      pinchingRef.current = false;
+      setDragging(false);
+      setTf(tfRef.current);
+      targetRef.current = tfRef.current;
+      return;
+    }
     const d = drag.current;
     // Only react to the end of a real press. Without this guard a bare
     // pointerleave (cursor exiting the frame with no button down) would re-run
@@ -470,9 +639,6 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     const svg = svgRef.current;
     if (svg) svg.style.transform = "";
     setTf(tfRef.current);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
     if (d.moved || status !== "guessing") return;
     // Resolve the tap the same way the hover preview did: a direct hit selects
     // that country (or a smaller enclave snapped onto it); an ocean tap snaps to
@@ -764,12 +930,24 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     }[] = [];
     for (const s of labelCandidates) {
       const name = countryName(s.id, language, s.rawName);
-      const halfW = name.length * LABEL_PX * 0.27 + 2;
-      const halfH = LABEL_PX * 0.62;
+      // Inter-label gap padding scales with the label size (not a constant) so
+      // the spacing holds up when labels are enlarged on small screens — a fixed
+      // few units there is barely a pixel of real gap, which let big labels touch.
+      const halfW = name.length * effLabelPx * 0.27 + effLabelPx * 0.28;
+      const halfH = effLabelPx * 0.62;
       for (const off of copies) {
         const sx = tf.x + (s.cx + off) * tf.k;
         const sy = tf.y + s.cy * tf.k;
-        if (sx < 0 || sx > MAP_WIDTH || sy < 0 || sy > MAP_HEIGHT) continue;
+        // Cull against the actually-visible viewBox rect (includes the letterbox),
+        // not the fixed [0,MAP_WIDTH]×[0,MAP_HEIGHT] — so labels stay while their
+        // country is on screen in the letterbox area after zooming.
+        if (
+          sx < viewBounds.minX ||
+          sx > viewBounds.maxX ||
+          sy < viewBounds.minY ||
+          sy > viewBounds.maxY
+        )
+          continue;
         const box = {
           x0: sx - halfW,
           y0: sy - halfH,
@@ -786,9 +964,9 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
       }
     }
     return (lastLabelsRef.current = out);
-  }, [showLabels, language, tf, copies, dragging, animating]);
+  }, [showLabels, language, tf, copies, dragging, animating, effLabelPx, viewBounds]);
 
-  const labelSize = LABEL_PX / tf.k;
+  const labelSize = effLabelPx / tf.k;
 
   // The hover-target shape to highlight. Drawn as a cheap overlay on top of the
   // memoized country paths so hovering never rebuilds the ~177-path array.
@@ -803,7 +981,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   // triggered mid-flight (e.g. a hover setState while guessing) must write the
   // LIVE transform — not stale `tf`, which would snap the view back to the zoom's
   // start and fight the animator frame-by-frame until it settles.
-  const renderTf = animating ? tfRef.current : tf;
+  const renderTf = animating || pinchingRef.current ? tfRef.current : tf;
 
   return (
     <div className="map-wrap">

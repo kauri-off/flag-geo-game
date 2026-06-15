@@ -257,6 +257,10 @@ body {
   width: 100%;
   height: 100%;
   cursor: grab;
+  /* The touch starts on the SVG/paths, so set touch-action here too (not only on
+     the wrapper): the browser must hand us all one- and two-finger gestures
+     instead of scrolling/zooming the page, or pinch-zoom never reaches our JS. */
+  touch-action: none;
   /* Promote to its own GPU layer so the live drag (a CSS translate set
      imperatively in JS) composites without repainting the ~500 vector paths. */
   will-change: transform;
@@ -451,11 +455,50 @@ body {
 @media (max-width: 560px) {
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .flag-big { font-size: 4rem; }
-  .brand { font-size: 1rem; }
-  .nav-btn { padding: 7px 10px; }
+  /* Fit brand + all five tabs on a phone. Collapsing the brand to just its globe
+     icon (hiding the "Flag Geo" wordmark) frees the ~70px needed so every tab
+     stays visible — no clipping, no hidden-scroll guessing. overflow-x:auto is
+     kept only as a safety net for longer translations. */
+  .topbar { padding: 8px 8px; gap: 6px; }
+  .brand { font-size: 1.05rem; white-space: nowrap; flex: 0 0 auto; }
+  .brand-text { display: none; }
+  .nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    /* flex-start (not flex-end): when the tabs overflow — e.g. the longer Russian
+       labels — the spill must go to the RIGHT so it's scroll-reachable and the
+       first tab stays fully visible. flex-end spills LEFT under the brand icon,
+       clipping "Играть" and leaving it unreachable by scroll. */
+    justify-content: flex-start;
+    gap: 3px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    padding: 6px 6px;
+    font-size: 0.76rem;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
   /* Compact the floating challenge HUD so it clears the flag prompt. */
   .challenge-hud { gap: 10px; padding: 8px 10px; }
   .challenge-hud .hud-val { font-size: 1.05rem; }
+  /* The flag prompt is pinned top-left and the feedback banner is centered at the
+     same top:72px — on a phone they're wide enough to collide. Drop the banner
+     below the prompt and let it span the width (full-width wraps to fewer/short
+     lines instead of a tall narrow block jammed against the prompt). */
+  .feedback {
+    top: 200px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    max-width: none;
+  }
+  /* Keep the online round countdown below the relocated feedback so the two
+     intermission overlays stack instead of overlapping. */
+  .round-timer { top: 280px; }
 }
 
 /* ============================ online mode ============================ */
@@ -551,8 +594,16 @@ body {
 .online-identity { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .identity-flag { font-size: 1.6rem; border-radius: 3px; }
 .online-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+/* Let the grid tracks shrink below their content's intrinsic width. Without this
+   a non-wrapping child (the join-row's fixed-width inputs) forces the column —
+   and the whole page — wider than a phone viewport (horizontal scroll). */
+.online-columns > * { min-width: 0; }
 .create-room h3, .join-room h3 { margin-top: 0; }
-.join-row { display: flex; gap: 8px; margin-bottom: 16px; }
+/* Wrap the code/password/join controls and let the inputs flex so they fit a
+   phone width instead of overflowing in a fixed three-across row. */
+.join-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.join-row .text-input { flex: 1 1 120px; min-width: 0; }
+.join-row .btn { flex: 0 0 auto; }
 .rooms-header { display: flex; align-items: center; justify-content: space-between; }
 
 .room-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; }
@@ -566,9 +617,13 @@ body {
 
 /* lobby */
 .lobby { max-width: 640px; margin: 0 auto; }
-.lobby-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.btn.ghost.lobby-leave { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); }
-.room-code-box { display: flex; align-items: center; gap: 10px; }
+/* Wrap so a narrow screen drops the Leave button onto its own line instead of
+   squeezing it into a sliver where its (longer, e.g. Russian) label wraps to
+   several lines. margin-left:auto keeps it right-aligned whether it's beside the
+   code box or wrapped below it. row-gap spaces the wrapped line. */
+.lobby-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.btn.ghost.lobby-leave { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); white-space: nowrap; margin-left: auto; }
+.room-code-box { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .room-code { font-family: ui-monospace, monospace; font-size: 1.4rem; font-weight: 800; letter-spacing: 4px; color: var(--accent); }
 .countdown-banner { text-align: center; font-size: 1.4rem; font-weight: 700; padding: 14px; color: var(--accent); }
 
@@ -761,4 +816,8 @@ body {
 @media (max-width: 560px) {
   .online-hud { width: 160px; top: 64px; }
   .online-hud-round { padding: 6px 10px; }
+  /* The round pill + Leave button don't fit side by side in the narrow mobile
+     HUD, so the Leave button was clipping off the right edge. Let the row wrap —
+     the pill stays on top and Leave drops below it, right-aligned. */
+  .online-hud-top { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
 }
