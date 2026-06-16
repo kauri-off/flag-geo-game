@@ -32,6 +32,20 @@ export interface AuthedAccount {
   avatar: string;
 }
 
+/** Thrown when the server rejects our token (expired/invalid). The store uses
+ *  this to send the user back to the login screen instead of stranding them. */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+/** True when an error came from `call()` as an authentication failure. */
+export function isAuthError(e: unknown): e is AuthError {
+  return e instanceof AuthError;
+}
+
 /** Run a client call, normalising Connect errors into plain Errors with a
  *  human message (the store surfaces `.message` to the user). */
 async function call<T>(fn: () => Promise<T>): Promise<T> {
@@ -41,6 +55,9 @@ async function call<T>(fn: () => Promise<T>): Promise<T> {
     const err = ConnectError.from(e);
     if (err.code === Code.Unavailable || err.code === Code.Unknown) {
       throw new Error('Could not reach the server. Check the URL and that it is running.');
+    }
+    if (err.code === Code.Unauthenticated) {
+      throw new AuthError(err.rawMessage || err.message);
     }
     throw new Error(err.rawMessage || err.message);
   }

@@ -11,6 +11,7 @@ import {
   getInfo,
   getLeaderboard,
   getRooms,
+  isAuthError,
   normalizeBase,
   postAuth,
   postCreateRoom,
@@ -266,6 +267,7 @@ export const useOnline = create<OnlineState>()(
           const { rooms } = await getRooms(normalizeBase(serverUrl), token);
           set({ rooms });
         } catch (e) {
+          if (isAuthError(e)) return sessionExpired(set);
           set({ error: errMsg(e) });
         }
       },
@@ -304,6 +306,7 @@ export const useOnline = create<OnlineState>()(
           });
           enterRoom(set, get, roomToken, playerId);
         } catch (e) {
+          if (isAuthError(e)) return sessionExpired(set);
           set({ status: 'idle', error: errMsg(e) });
         }
       },
@@ -322,6 +325,7 @@ export const useOnline = create<OnlineState>()(
           );
           enterRoom(set, get, roomToken, playerId);
         } catch (e) {
+          if (isAuthError(e)) return sessionExpired(set);
           set({ status: 'idle', error: errMsg(e) });
         }
       },
@@ -439,6 +443,23 @@ function enterRoom(set: Set, get: Get, roomToken: string, playerId: string) {
       set({ status: status === 'open' ? 'open' : status === 'connecting' ? 'connecting' : 'closed' });
     },
     onGiveUp: () => bailToBrowse(set, get, t('connectionLost', useSettings.getState().language)),
+  });
+}
+
+/** The token the server gave us is no longer accepted (expired/invalid). Drop it
+ *  and send the user back to the login screen with an explanation, instead of
+ *  stranding them on the browse view with a bare "unauthorized". */
+function sessionExpired(set: Set) {
+  streamClose();
+  lobbyClose();
+  useGame.getState().setOnline(false);
+  set({
+    view: 'connect',
+    token: null,
+    serverInfo: null,
+    rooms: [],
+    error: t('sessionExpired', useSettings.getState().language),
+    ...clearedRoom(),
   });
 }
 
