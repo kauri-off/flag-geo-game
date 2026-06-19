@@ -11,7 +11,7 @@ in rooms.
   - `GameService` — live room play: a server-streaming `PlayEvents` (lobby,
     countdown, per-round flags, live scoreboard, results) plus unary action RPCs
     (submit answer, chat, host controls). Browsers can't do gRPC bidi streaming,
-    so this server-stream + unary split replaces the old WebSocket.
+    so live play is a server-stream + unary split.
 - **Server-authoritative**: the server owns the flag sequence, round timing,
   correctness (including flag twins) and scoring. Clients only render and submit
   a chosen country, so scores can't be forged.
@@ -94,7 +94,7 @@ http://localhost:8099` from the repo root.
 
 ## Services
 
-`AuthService` (GetInfo, GetVersion, Auth, Register, Login), `RoomService`
+`AuthService` (GetInfo, Auth, Register, Login), `RoomService`
 (ListRooms, CreateRoom, JoinRoom, GetLeaderboard), `GameService` (PlayEvents
 [server-stream], SetProfile, UpdateConfig, TransferHost, KickPlayer, StartMatch,
 SubmitAnswer, SendChat, LeaveRoom). All served over Connect / gRPC-Web; the

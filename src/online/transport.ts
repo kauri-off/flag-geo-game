@@ -2,8 +2,7 @@
 // URL is whatever the player typed in the Online tab (it may include a subpath,
 // e.g. https://host/flaggame); Connect appends the gRPC route
 // (/flaggeo.v1.<Service>/<Method>) to it. Identity travels as an `authorization:
-// Bearer <token>` header on each call (see `auth`), replacing the old WS query
-// token + REST Authorization header.
+// Bearer <token>` header on each call (see `auth`).
 import { createClient, type Client } from '@connectrpc/connect';
 import { createGrpcWebTransport } from '@connectrpc/connect-web';
 import { AuthService, GameService, RoomService } from './gen/flaggeo/v1/flaggeo_pb';

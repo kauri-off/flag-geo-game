@@ -1,9 +1,9 @@
 // Module-level client for the browse view's push feed (`RoomService.WatchLobby`).
-// It replaces the old `setInterval(refreshRooms, 5000)` poll: while the player is
-// in the browse view a single server-stream stays open and pushes a fresh room
-// list / leaderboard whenever either changes server-side. Mirrors `eventStream.ts`
-// (the per-room game stream) but authenticates with the *session* token, not the
-// room token, and auto-reconnects with the same capped backoff.
+// While the player is in the browse view a single server-stream stays open and
+// pushes a fresh room list / leaderboard whenever either changes server-side.
+// Mirrors `eventStream.ts` (the per-room game stream) but authenticates with the
+// *session* token, not the room token, and auto-reconnects with the same capped
+// backoff.
 import { auth, roomClient } from './transport';
 import { toLeaderboardRow, toRoomSummary, type LeaderboardRow, type RoomSummary } from './protocol';
 

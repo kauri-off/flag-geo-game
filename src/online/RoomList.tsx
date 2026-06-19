@@ -29,7 +29,7 @@ export function RoomList() {
   const [joinPassword, setJoinPassword] = useState('');
 
   // Live room list + leaderboard: the server pushes updates over a stream that
-  // stays open while this view is mounted (replacing the old 5s poll).
+  // stays open while this view is mounted.
   useEffect(() => {
     watchLobby();
     return () => stopLobbyWatch();

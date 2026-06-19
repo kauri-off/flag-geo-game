@@ -5,13 +5,7 @@
 //! converts between these and the generated `crate::pb` types at the RPC
 //! boundary (see `grpc::convert`).
 //!
-//! `ClientMsg`/`ServerMsg` were the WebSocket JSON enums; they now exist only as
-//! the actor's command/event vocabulary.
-
-/// Bumped on any breaking protocol change; surfaced via GetInfo/GetVersion so a
-/// mismatched client can refuse to connect. v5: Connect/gRPC-Web + protobuf.
-/// v6: RoomService.WatchLobby push stream for the browse view.
-pub const PROTOCOL_VERSION: u32 = 6;
+//! `ClientMsg`/`ServerMsg` are the actor's command/event vocabulary.
 
 #[derive(Debug, Clone)]
 pub struct DifficultyFilter {

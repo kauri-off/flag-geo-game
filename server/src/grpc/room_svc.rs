@@ -1,6 +1,5 @@
-//! RoomService: room list/create/join and the leaderboard. Ports the old REST
-//! `GET|POST /rooms`, `/rooms/{code}/join` and `/leaderboard` handlers. The
-//! session token rides in `authorization` metadata.
+//! RoomService: room list/create/join and the leaderboard. The session token
+//! rides in `authorization` metadata.
 use std::pin::Pin;
 use std::time::Duration;
 

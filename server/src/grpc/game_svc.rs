@@ -1,11 +1,10 @@
 //! GameService: the live room/match loop.
 //!
-//! `PlayEvents` is the server->client stream that replaces the WebSocket receive
-//! side — opening it registers a sink with the room actor (the old
-//! `Hello`/`Connect`), and dropping it (client gone) sends `Disconnect`, exactly
-//! like `ws/conn.rs` did. The unary RPCs are the client->server actions that used
-//! to be `ClientMsg` frames; each forwards a `Command::Msg` to the actor and
-//! returns an empty `Ack`. Soft acks/errors still flow back over the stream.
+//! `PlayEvents` is the server->client stream: opening it registers a sink with
+//! the room actor, and dropping it (client gone) sends `Disconnect`. The unary
+//! RPCs are the client->server actions; each forwards a `Command::Msg` to the
+//! actor and returns an empty `Ack`. Soft acks/errors still flow back over the
+//! stream.
 use std::pin::Pin;
 use std::sync::Arc;
 

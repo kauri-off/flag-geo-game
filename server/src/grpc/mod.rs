@@ -1,12 +1,10 @@
-//! The gRPC / Connect (gRPC-Web) service layer. Three tonic services replace the
-//! old REST + WebSocket stack:
+//! The gRPC / Connect (gRPC-Web) service layer. Three tonic services:
 //!   - `auth_svc`: discovery, guest auth, account register/login
 //!   - `room_svc`: room list/create/join, leaderboard
 //!   - `game_svc`: the live room/match loop (PlayEvents server-stream + actions)
 //!
 //! Identity travels as an `authorization: Bearer <token>` metadata header on
-//! every call (session token for auth/room, room token for game), replacing the
-//! WebSocket's `Hello{roomToken}` handshake.
+//! every call (session token for auth/room, room token for game).
 mod auth_svc;
 mod convert;
 mod game_svc;

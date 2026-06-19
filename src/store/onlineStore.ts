@@ -1,13 +1,12 @@
-// Online multiplayer store. Owns the connection lifecycle (REST auth + room
-// management, then a live WebSocket) and mirrors the server's room/match state
-// for the UI. Round render-state is bridged into the existing game store
+// Online multiplayer store. Owns the connection lifecycle (auth + room
+// management, then a live event stream) and mirrors the server's room/match
+// state for the UI. Round render-state is bridged into the existing game store
 // (`useGame`) so the map/board are reused unchanged for the race.
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { countries } from '../data/countries';
 import { useGame } from './gameStore';
 import {
-  CLIENT_PROTOCOL,
   getInfo,
   getLeaderboard,
   getRooms,
@@ -386,15 +385,9 @@ export const useOnline = create<OnlineState>()(
 type Set = (partial: Partial<OnlineState>) => void;
 type Get = () => OnlineState;
 
-/** Fetch `/info` and refuse to proceed if the server's protocol differs. */
+/** Fetch `/info` for server discovery. */
 async function checkServer(base: string): Promise<ServerInfo> {
-  const info = await getInfo(base);
-  if (info.protocol !== CLIENT_PROTOCOL) {
-    throw new Error(
-      `Server protocol (${info.protocol}) doesn't match this client (${CLIENT_PROTOCOL}). Update one of them.`,
-    );
-  }
-  return info;
+  return getInfo(base);
 }
 
 /** The nickname + avatar to seat with: the account's when logged in, else the

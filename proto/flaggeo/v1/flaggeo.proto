@@ -7,21 +7,12 @@ syntax = "proto3";
 //
 // The transport is Connect / gRPC-Web over HTTP/1.1 (tonic-web server,
 // @connectrpc/connect-web client). Because browsers cannot do gRPC
-// client-/bidi-streaming, the old bidirectional WebSocket is expressed as one
-// server-streaming RPC (GameService.PlayEvents) plus unary action RPCs. Player
-// and room identity travel as an `authorization: Bearer <token>` metadata header
-// on every call (the session token for AuthService/RoomService; the room token
-// for GameService), replacing the WebSocket's `Hello{roomToken}` handshake.
+// client-/bidi-streaming, live play is one server-streaming RPC
+// (GameService.PlayEvents) plus unary action RPCs. Player and room identity
+// travel as an `authorization: Bearer <token>` metadata header on every call
+// (the session token for AuthService/RoomService; the room token for
+// GameService).
 package flaggeo.v1;
-
-// Bumped on any breaking protocol change; surfaced via GetInfo/GetVersion so a
-// mismatched client can refuse to connect.
-//   v5: migrated from REST + JSON WebSocket to Connect/gRPC-Web + protobuf.
-//   v6: added RoomService.WatchLobby — the browse view now receives pushed room
-//       list / leaderboard updates instead of polling ListRooms.
-//
-// (Kept as a comment because proto3 has no top-level const; the value lives in
-// VersionInfo.protocol / ServerInfo.protocol, set server-side.)
 
 // ---------------------------------------------------------------------------
 // Shared value types (mirror server/src/room/messages.rs domain structs).
@@ -107,8 +98,7 @@ message LeaderboardRow {
 }
 
 // ---------------------------------------------------------------------------
-// AuthService — discovery, auth, accounts (replaces /info /version /auth
-// /register /login). All unary.
+// AuthService — discovery, auth, accounts. All unary.
 // ---------------------------------------------------------------------------
 
 message GetInfoRequest {}
@@ -118,15 +108,8 @@ message ServerInfo {
   bool auth_required = 2;
   bool guests_allowed = 3;
   uint32 max_players = 4;
-  uint32 protocol = 5;
+  reserved 5;
   bool registration_enabled = 6;
-}
-
-message GetVersionRequest {}
-
-message VersionInfo {
-  string version = 1;
-  uint32 protocol = 2;
 }
 
 message AuthRequest {
@@ -161,15 +144,13 @@ message AuthedAccount {
 
 service AuthService {
   rpc GetInfo(GetInfoRequest) returns (ServerInfo);
-  rpc GetVersion(GetVersionRequest) returns (VersionInfo);
   rpc Auth(AuthRequest) returns (AuthResponse);
   rpc Register(RegisterRequest) returns (AuthedAccount);
   rpc Login(LoginRequest) returns (AuthedAccount);
 }
 
 // ---------------------------------------------------------------------------
-// RoomService — room discovery / create / join, leaderboard (replaces
-// GET|POST /rooms, /rooms/{code}/join, /leaderboard). Session token in
+// RoomService — room discovery / create / join, leaderboard. Session token in
 // metadata. All unary.
 // ---------------------------------------------------------------------------
 
@@ -236,12 +217,11 @@ service RoomService {
 
 // ---------------------------------------------------------------------------
 // GameService — the live room/match loop. PlayEvents is the server->client
-// stream (replacing the WebSocket receive side); the unary RPCs are the
-// client->server actions (replacing each ClientMsg). Room token in metadata.
+// event stream; the unary RPCs are the client->server actions. Room token in
+// metadata.
 // ---------------------------------------------------------------------------
 
-// Server -> client events. `payload` is a oneof whose field names match the
-// old ServerMsg `type` tags so the client switch maps 1:1.
+// Server -> client events. `payload` is a oneof the client switches on 1:1.
 message ServerEvent {
   oneof payload {
     Welcome welcome = 1;
@@ -316,7 +296,7 @@ message ErrorEvent {
   string message = 2;
 }
 
-// --- client -> server action requests (each replaces a ClientMsg) ---
+// --- client -> server action requests ---
 
 message PlayEventsRequest {}
 
@@ -340,8 +320,8 @@ message LeaveRoomRequest {}
 message Ack {}
 
 service GameService {
-  // Open the server->client event stream. Opening it = the old Hello/Connect:
-  // the room token in metadata binds the stream to the reserved player slot.
+  // Open the server->client event stream. The room token in metadata binds the
+  // stream to the reserved player slot.
   rpc PlayEvents(PlayEventsRequest) returns (stream ServerEvent);
 
   rpc SetProfile(SetProfileRequest) returns (Ack);

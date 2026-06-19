@@ -1,15 +1,13 @@
-//! AuthService: discovery, guest auth, account register/login. Ports the old
-//! REST `/info` `/version` `/auth` `/register` `/login` handlers.
+//! AuthService: discovery, guest auth, account register/login.
 use tonic::{Request, Response, Status};
 
 use crate::auth;
 use crate::error::AppError;
 use crate::pb::auth_service_server::{AuthService, AuthServiceServer};
 use crate::pb::{
-    AuthRequest, AuthResponse, AuthedAccount, GetInfoRequest, GetVersionRequest, LoginRequest,
-    RegisterRequest, ServerInfo, VersionInfo,
+    AuthRequest, AuthResponse, AuthedAccount, GetInfoRequest, LoginRequest, RegisterRequest,
+    ServerInfo,
 };
-use crate::protocol::PROTOCOL_VERSION;
 use crate::state::AppState;
 use crate::validate;
 
@@ -35,18 +33,7 @@ impl AuthService for AuthSvc {
             auth_required: c.auth_required(),
             guests_allowed: c.allow_guests,
             max_players: c.max_players_per_room as u32,
-            protocol: PROTOCOL_VERSION,
             registration_enabled: true,
-        }))
-    }
-
-    async fn get_version(
-        &self,
-        _req: Request<GetVersionRequest>,
-    ) -> Result<Response<VersionInfo>, Status> {
-        Ok(Response::new(VersionInfo {
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            protocol: PROTOCOL_VERSION,
         }))
     }
 

@@ -1,10 +1,10 @@
 // Module-level client for online play over Connect/gRPC-Web. The server->client
-// event stream (`GameService.PlayEvents`) replaces the old WebSocket receive
-// side; client->server actions are individual unary RPCs (the `send*` helpers
-// below) replacing the old `wsSend` frames. A single live stream is kept here
-// (not in a component) so navigating between tabs never drops the room
-// connection. The stream auto-reconnects with backoff using the same room token
-// (the server keeps the player's slot during a short grace window).
+// event stream (`GameService.PlayEvents`) carries room events; client->server
+// actions are individual unary RPCs (the `send*` helpers below). A single live
+// stream is kept here (not in a component) so navigating between tabs never
+// drops the room connection. The stream auto-reconnects with backoff using the
+// same room token (the server keeps the player's slot during a short grace
+// window).
 import { auth, gameClient } from './transport';
 import type { RoomConfig } from './protocol';
 import type { ServerEvent } from './gen/flaggeo/v1/flaggeo_pb';
@@ -103,8 +103,8 @@ export function streamClose() {
 }
 
 // --- client -> server actions (fire-and-forget unary calls) ----------------
-// These mirror the old `wsSend` semantics: best-effort, errors swallowed (hard
-// failures such as a lost seat surface via the event stream / reconnect path).
+// Best-effort, errors swallowed (hard failures such as a lost seat surface via
+// the event stream / reconnect path).
 
 function send(p: Promise<unknown>) {
   void p.catch(() => {});

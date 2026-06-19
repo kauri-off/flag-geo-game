@@ -46,7 +46,7 @@ async function play(token: string, label: string): Promise<boolean> {
 
 async function main() {
   const info = await authc.getInfo({});
-  console.log(`server="${info.name}" protocol=${info.protocol} guests=${info.guestsAllowed}`);
+  console.log(`server="${info.name}" guests=${info.guestsAllowed}`);
 
   const a = (await authc.auth({})).token;
   const b = (await authc.auth({})).token;

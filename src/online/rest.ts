@@ -14,15 +14,11 @@ import { auth, authClient, normalizeBase, roomClient } from './transport';
 
 export { normalizeBase };
 
-/** Protocol version this client speaks; must match the server's GetInfo. */
-export const CLIENT_PROTOCOL = 6;
-
 export interface ServerInfo {
   name: string;
   authRequired: boolean;
   guestsAllowed: boolean;
   maxPlayers: number;
-  protocol: number;
   registrationEnabled: boolean;
 }
 
@@ -71,7 +67,6 @@ export function getInfo(base: string): Promise<ServerInfo> {
       authRequired: r.authRequired,
       guestsAllowed: r.guestsAllowed,
       maxPlayers: r.maxPlayers,
-      protocol: r.protocol,
       registrationEnabled: r.registrationEnabled,
     };
   });
