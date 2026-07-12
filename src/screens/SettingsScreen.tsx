@@ -137,6 +137,18 @@ export function SettingsScreen() {
       </section>
 
       <section className="settings-group">
+        <h3>{t('resetViewEachRound', lang)}</h3>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={s.resetViewEachRound}
+            onChange={(e) => s.setResetViewEachRound(e.target.checked)}
+          />
+          <span>{s.resetViewEachRound ? '✓' : ''}</span>
+        </label>
+      </section>
+
+      <section className="settings-group">
         <h3>{t('confirmMode', lang)}</h3>
         <div className="chip-row">
           <button

@@ -7,6 +7,7 @@ import type { Language } from '../i18n';
 import type { SizeBucket } from '../data/countries';
 import { DEFAULT_DIFFICULTY } from '../game/difficulty';
 import { DEFAULT_MODE, type GameModeId } from '../game/modes';
+import { DEFAULT_CHALLENGE, type ChallengeConfig } from '../game/challenge';
 
 export type ConfirmMode = 'spacebar' | 'click';
 
@@ -41,6 +42,10 @@ export interface SettingsState {
    * radius (base map/viewBox units). 0 = off (ocean clicks do nothing).
    */
   oceanSnapRadius: number;
+  /** Fly the map back to the world view at the start of every round. */
+  resetViewEachRound: boolean;
+  /** Last challenge configuration used, restored by the challenge setup form. */
+  lastChallenge: ChallengeConfig;
 
   setMode: (mode: GameModeId) => void;
   setLanguage: (lang: Language) => void;
@@ -52,6 +57,8 @@ export interface SettingsState {
   setShowPickedFlag: (v: boolean) => void;
   setAnswerSeconds: (s: number) => void;
   setOceanSnapRadius: (r: number) => void;
+  setResetViewEachRound: (v: boolean) => void;
+  setLastChallenge: (c: ChallengeConfig) => void;
 }
 
 export const useSettings = create<SettingsState>()(
@@ -67,6 +74,8 @@ export const useSettings = create<SettingsState>()(
       showPickedFlag: false,
       answerSeconds: 10,
       oceanSnapRadius: 25,
+      resetViewEachRound: false,
+      lastChallenge: DEFAULT_CHALLENGE,
 
       setMode: (mode) => set({ mode }),
       setLanguage: (language) => set({ language }),
@@ -80,7 +89,22 @@ export const useSettings = create<SettingsState>()(
         set({ answerSeconds: Math.min(60, Math.max(0, Math.round(answerSeconds))) }),
       setOceanSnapRadius: (oceanSnapRadius) =>
         set({ oceanSnapRadius: Math.min(60, Math.max(0, Math.round(oceanSnapRadius))) }),
+      setResetViewEachRound: (resetViewEachRound) => set({ resetViewEachRound }),
+      setLastChallenge: (lastChallenge) => set({ lastChallenge }),
     }),
-    { name: 'flag-geo-settings' },
+    {
+      name: 'flag-geo-settings',
+      // Bump when a persisted field changes shape; migrate old payloads here so
+      // existing players' settings survive instead of silently misparsing.
+      version: 1,
+      migrate: (persisted, version) => {
+        const s = persisted as Partial<SettingsState>;
+        if (version === 0 && s.difficulty && s.difficulty.scope === undefined) {
+          // Pre-versioning payloads may lack `scope`; make the implied default explicit.
+          s.difficulty = { ...s.difficulty, scope: 'all' };
+        }
+        return s as SettingsState;
+      },
+    },
   ),
 );

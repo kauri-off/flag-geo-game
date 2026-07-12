@@ -2,7 +2,7 @@
 // reads the difficulty pool from settings, records finished rounds into history,
 // and keeps live session stats. Kept renderer-agnostic.
 import { create } from 'zustand';
-import { buildPool, nextFromBag } from '../game/pool';
+import { buildPool, nextFromBag, resetBag } from '../game/pool';
 import { sameFlag } from '../game/flagTwins';
 import type { RoundRecord, SessionStats } from '../game/types';
 import { countryById } from '../data/countries';
@@ -135,12 +135,11 @@ export const useGame = create<GameState>((set, get) => ({
     // A country already guessed wrong this round can't be picked again.
     if (wrongPicks.includes(id)) return;
     set({ selectedId: id });
-    const settings = useSettings.getState();
     // In click-to-confirm mode the result sound follows immediately, so skip the
     // pick blip to avoid stacking two sounds.
-    if (settings.confirmMode === 'click') {
+    if (useSettings.getState().confirmMode === 'click') {
       get().confirm();
-    } else if (settings.soundOn) {
+    } else {
       playSelect();
     }
   },
@@ -153,7 +152,7 @@ export const useGame = create<GameState>((set, get) => ({
       if (s0.status !== 'guessing' || s0.answeredOnline || !s0.selectedId || !s0.submitOnline) {
         return;
       }
-      if (useSettings.getState().soundOn) playSelect();
+      playSelect();
       s0.submitOnline(s0.onlineRoundIndex, s0.selectedId);
       set({ answeredOnline: true });
       return;
@@ -165,13 +164,12 @@ export const useGame = create<GameState>((set, get) => ({
     const timeMs = performance.now() - startedAt;
     // Accept a country whose flag is indistinguishable from the target's.
     const correct = !!selectedId && sameFlag(selectedId, targetId);
-    const settings = useSettings.getState();
-    const mode = settings.mode;
+    const mode = useSettings.getState().mode;
 
     // Challenge multi-attempt: a wrong (non-timeout) guess with tries to spare
     // doesn't end the round — mark the pick and let the player try again.
     if (challenge && selectedId && !correct && !lastTimedOut && attemptsLeft > 1) {
-      if (settings.soundOn) playWrong();
+      playWrong();
       set({
         attemptsLeft: attemptsLeft - 1,
         wrongPicks: [...wrongPicks, selectedId],
@@ -180,12 +178,13 @@ export const useGame = create<GameState>((set, get) => ({
       return;
     }
 
-    if (settings.soundOn) (correct ? playCorrect : playWrong)();
+    (correct ? playCorrect : playWrong)();
 
     const record: RoundRecord = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       date: Date.now(),
       mode,
+      kind: challenge ? 'challenge' : 'practice',
       flagAlpha2: targetAlpha2,
       targetId,
       targetName: countryName(targetId, 'en', countryById.get(targetId)?.alpha3),
@@ -254,7 +253,9 @@ export const useGame = create<GameState>((set, get) => ({
   resetSession: () => set({ session: emptySession() }),
 
   startChallenge: (config) => {
-    // Fresh run: clear any leftover target so the first pick is unbiased.
+    // Fresh run: start an independent shuffle bag (don't resume practice's) and
+    // clear any leftover target so the first pick is unbiased.
+    resetBag();
     set({ challenge: { config, results: [], score: 0 }, targetId: null });
     get().newRound();
   },
@@ -292,7 +293,7 @@ export const useGame = create<GameState>((set, get) => ({
   // Called when the server reveals the round: flip to the green/red result. The
   // authoritative target id comes from the server so the highlight is correct.
   applyOnlineResult: ({ targetId, correct, timeMs, timedOut }) => {
-    if (useSettings.getState().soundOn) (correct ? playCorrect : playWrong)();
+    (correct ? playCorrect : playWrong)();
     set({
       status: 'revealed',
       targetId,

@@ -32,9 +32,11 @@ interface Note {
 }
 
 function play(notes: Note[]) {
-  // Master volume from settings (0–100). Skip work entirely when muted.
-  const vol = useSettings.getState().volume / 100;
-  if (vol <= 0) return;
+  // Sound toggle + master volume (0–100) from settings, checked here so no
+  // caller has to. Skip work entirely when muted.
+  const { soundOn, volume } = useSettings.getState();
+  const vol = volume / 100;
+  if (!soundOn || vol <= 0) return;
   const ac = audio();
   if (!ac) return;
   const now = ac.currentTime;

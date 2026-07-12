@@ -27,6 +27,13 @@ interface Transform {
 
 const MIN_K = 1;
 const MAX_K = 120;
+
+// Country fill palette. The label styling detects "still uncolored" by comparing
+// against COLOR_LAND, so keep every state color distinct from it.
+const COLOR_LAND = "#b9c5d0";
+const COLOR_CORRECT = "#3fb27f";
+const COLOR_WRONG = "#e25563";
+const COLOR_SELECTED = "#4f86c6";
 const LABEL_PX = 11; // label height in viewBox units (its on-screen px = LABEL_PX × fit)
 // Floor for the label's actual on-screen height in CSS px. Labels are authored in
 // viewBox units, so their rendered size scales with the viewBox→element fit — on a
@@ -275,6 +282,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
   const showLabels = useSettings((s) => s.showLabels);
   const language = useSettings((s) => s.language);
   const oceanSnapRadius = useSettings((s) => s.oceanSnapRadius);
+  const resetViewEachRound = useSettings((s) => s.resetViewEachRound);
 
   // --- pan + click ---
   // We capture the country under the cursor at pointer-DOWN time (before
@@ -839,6 +847,21 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapZoomNonce]);
 
+  // Optionally glide back to the world view whenever a new round starts (the
+  // status flips into "guessing" from reveal/idle), so each flag is hunted from
+  // the same fair starting view instead of wherever the last reveal zoomed to.
+  // Keyed on the status *transition* — pause/resume and re-picks stay put — and
+  // seeded with the mount-time status so remounting mid-guess doesn't fire.
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const was = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (!resetViewEachRound || status !== "guessing" || was === "guessing") return;
+    const cur = tfRef.current;
+    if (cur.k === 1 && cur.x === 0 && cur.y === 0) return; // already home
+    flyTo({ k: 1, x: 0, y: 0 });
+  }, [status, resetViewEachRound, flyTo]);
+
   const zoomButton = (factor: number) => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -851,14 +874,14 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
     () =>
       (id: string): string => {
         const revealed = status === "revealed";
-        if (revealed && id && id === targetId) return "#3fb27f"; // correct answer
+        if (revealed && id && id === targetId) return COLOR_CORRECT; // correct answer
         if (revealed && id && id === selectedId)
           // green if the pick's flag matches the target (twin flags), else red
-          return targetId && sameFlag(id, targetId) ? "#3fb27f" : "#e25563";
+          return targetId && sameFlag(id, targetId) ? COLOR_CORRECT : COLOR_WRONG;
         // A spent wrong guess (challenge multi-attempt) stays red while guessing.
-        if (id && wrongPicks.includes(id)) return "#e25563";
-        if (id && id === selectedId) return "#4f86c6"; // current selection
-        return "#b9c5d0"; // land
+        if (id && wrongPicks.includes(id)) return COLOR_WRONG;
+        if (id && id === selectedId) return COLOR_SELECTED; // current selection
+        return COLOR_LAND;
       },
     [status, targetId, selectedId, wrongPicks],
   );
@@ -1049,7 +1072,7 @@ export function WorldMap({ overlay }: { overlay?: ReactNode }) {
                       // tinting the text to match the fill makes it the same hue as the
                       // country and hard to read, so we go high-contrast instead.
                       style={
-                        fill === "#b9c5d0"
+                        fill === COLOR_LAND
                           ? undefined
                           : { fill: "#ffffff", stroke: "#000000" }
                       }

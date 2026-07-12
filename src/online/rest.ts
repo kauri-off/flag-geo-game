@@ -50,12 +50,14 @@ async function call<T>(fn: () => Promise<T>): Promise<T> {
   } catch (e) {
     const err = ConnectError.from(e);
     if (err.code === Code.Unavailable || err.code === Code.Unknown) {
-      throw new Error('Could not reach the server. Check the URL and that it is running.');
+      throw new Error('Could not reach the server. Check the URL and that it is running.', {
+        cause: e,
+      });
     }
     if (err.code === Code.Unauthenticated) {
       throw new AuthError(err.rawMessage || err.message);
     }
-    throw new Error(err.rawMessage || err.message);
+    throw new Error(err.rawMessage || err.message, { cause: e });
   }
 }
 

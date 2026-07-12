@@ -119,6 +119,8 @@ npm run dev        # start the Vite dev server (http://localhost:5173)
 | `npm run build`           | Type-check and produce a production web build in `dist/`.                  |
 | `npm run preview`         | Serve the production build locally.                                        |
 | `npm run typecheck`       | Type-check without emitting.                                               |
+| `npm test`                | Run the unit tests (vitest).                                               |
+| `npm run lint`            | Lint with ESLint (typescript-eslint + react-hooks).                        |
 
 For the server, see [`server/README.md`](server/README.md) (`cargo run`,
 `cargo test`, Docker).

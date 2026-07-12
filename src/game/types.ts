@@ -7,6 +7,8 @@ export interface RoundRecord {
   date: number;
   /** Game mode key, e.g. "flag-to-map". */
   mode: string;
+  /** How the round was played. Absent on records from older versions (practice). */
+  kind?: 'practice' | 'challenge';
   /** Alpha-2 of the shown flag. */
   flagAlpha2: string;
   /** Numeric ISO id of the correct country. */

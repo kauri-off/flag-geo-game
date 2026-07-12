@@ -9,7 +9,6 @@ import { StatsRow } from '../components/StatsRow';
 import { useGame } from '../store/gameStore';
 import { useSettings, type DifficultyFilter } from '../store/settingsStore';
 import {
-  DEFAULT_CHALLENGE,
   ROUND_PRESETS,
   ATTEMPT_PRESETS,
   PERFECT_SEC,
@@ -32,14 +31,21 @@ export function ChallengeScreen() {
 function ChallengeSetup() {
   const lang = useSettings((s) => s.language);
   const startChallenge = useGame((s) => s.startChallenge);
+  // Seed the form from the last-played configuration so a returning player
+  // doesn't re-enter their preferred setup every time.
+  const lastChallenge = useSettings((s) => s.lastChallenge);
+  const setLastChallenge = useSettings((s) => s.setLastChallenge);
 
-  const [rounds, setRounds] = useState(DEFAULT_CHALLENGE.rounds);
-  const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_CHALLENGE.timeLimitSec);
-  const [attempts, setAttempts] = useState(DEFAULT_CHALLENGE.attempts);
-  const [difficulty, setDifficulty] = useState<DifficultyFilter>(DEFAULT_CHALLENGE.difficulty);
+  const [rounds, setRounds] = useState(lastChallenge.rounds);
+  const [timeLimitSec, setTimeLimitSec] = useState(lastChallenge.timeLimitSec);
+  const [attempts, setAttempts] = useState(lastChallenge.attempts);
+  const [difficulty, setDifficulty] = useState<DifficultyFilter>(lastChallenge.difficulty);
 
-  const start = () =>
-    startChallenge({ rounds: Math.max(1, rounds), timeLimitSec, attempts, difficulty });
+  const start = () => {
+    const config = { rounds: Math.max(1, rounds), timeLimitSec, attempts, difficulty };
+    setLastChallenge(config);
+    startChallenge(config);
+  };
 
   return (
     <div className="settings">

@@ -35,6 +35,13 @@ function shuffle<T>(arr: T[]): T[] {
 let bag: CountryMeta[] = [];
 let bagKey = '';
 
+/** Discard the current bag so the next draw starts a fresh, independent shuffle
+ *  (e.g. at the start of a challenge run, so it doesn't resume practice's bag). */
+export function resetBag(): void {
+  bag = [];
+  bagKey = '';
+}
+
 export function nextFromBag(
   pool: CountryMeta[],
   key: string,

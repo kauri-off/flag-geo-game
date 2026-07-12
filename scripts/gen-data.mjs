@@ -7,7 +7,7 @@
 //
 // Keys are normalised numeric ISO 3166-1 codes WITHOUT leading zeros so they
 // always line up with the ids used in the world-atlas TopoJSON.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';

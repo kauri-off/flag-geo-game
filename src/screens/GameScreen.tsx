@@ -1,12 +1,52 @@
 // Free-practice screen: an endless round loop. The round mechanics live in the
-// shared RoundBoard; this screen only handles starting rounds and yielding to an
-// active challenge.
+// shared RoundBoard; this screen only handles starting rounds, showing the live
+// session stats and yielding to an active challenge.
 import { useEffect } from 'react';
 import { RoundBoard } from '../components/RoundBoard';
 import { useGame } from '../store/gameStore';
 import { useUi } from '../store/uiStore';
 import { useSettings } from '../store/settingsStore';
+import { statsFromSession, formatTime, formatAccuracy } from '../game/stats';
 import { t } from '../i18n';
+
+// Live session stats, floating top-right like the challenge HUD (practice and
+// challenge never show at once, so the spot is free). Hidden until a round has
+// been answered so a fresh screen isn't cluttered.
+function SessionHud() {
+  const session = useGame((s) => s.session);
+  const resetSession = useGame((s) => s.resetSession);
+  const language = useSettings((s) => s.language);
+
+  if (session.rounds === 0) return null;
+  const stats = statsFromSession(session);
+
+  return (
+    <div className="challenge-hud session-hud">
+      <div className="hud-item">
+        <span className="hud-key">{t('sessionStats', language)}</span>
+        <span className="hud-val">{stats.correct}/{stats.rounds}</span>
+      </div>
+      <div className="hud-item">
+        <span className="hud-key">{t('accuracy', language)}</span>
+        <span className="hud-val">{formatAccuracy(stats.accuracy)}</span>
+      </div>
+      <div className="hud-item">
+        <span className="hud-key">{t('avgTime', language)}</span>
+        <span className="hud-val">{formatTime(stats.avgTimeMs)}</span>
+      </div>
+      <div className="hud-actions">
+        <button
+          className="btn"
+          onClick={resetSession}
+          title={t('resetStats', language)}
+          aria-label={t('resetStats', language)}
+        >
+          ⟲
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function GameScreen() {
   const status = useGame((s) => s.status);
@@ -46,6 +86,7 @@ export function GameScreen() {
 
   return (
     <div className="game">
+      <SessionHud />
       <RoundBoard />
     </div>
   );

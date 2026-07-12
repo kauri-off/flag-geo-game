@@ -19,6 +19,12 @@ export const useHistory = create<HistoryState>()(
         set((s) => ({ rounds: [round, ...s.rounds].slice(0, 1000) })),
       clear: () => set({ rounds: [] }),
     }),
-    { name: 'flag-geo-history' },
+    {
+      name: 'flag-geo-history',
+      // Bump when RoundRecord changes shape; older payloads (version 0) already
+      // match — new optional fields like `kind` are simply absent there.
+      version: 1,
+      migrate: (persisted) => persisted as HistoryState,
+    },
   ),
 );
